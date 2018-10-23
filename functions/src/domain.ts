@@ -2,7 +2,9 @@ import * as functions from 'firebase-functions';
 import { firestore } from 'firebase-admin';
 
 export const getUserDomain = functions.https.onRequest((request, response) => {
-    response.send(firestore().collection('user-domains').doc(request.body.uid));
+    firestore().collection('user-domains').doc(request.body.uid).get()
+    .then(r => response.send(r.data))
+    .catch(e => response.status(500).send({ error: 'Failed to obtain user domain' }))
 });
 
 export const createUserDomain = functions.https.onRequest((request, response) => {
