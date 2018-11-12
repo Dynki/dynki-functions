@@ -1,5 +1,5 @@
 import { Express, Request, Response } from 'express';
-import { firestore } from 'firebase-admin';
+import * as admin from 'firebase-admin'; 
 import * as _ from 'lodash';
 
 import { DynRestBase } from '../base/restbase';
@@ -13,7 +13,7 @@ export class DomainRest extends DynRestBase {
         try {
             console.log(req.headers);
             if (_.has(req, 'headers.uid')) {
-                const domainCollection = await firestore()
+                const domainCollection = await admin.firestore()
                     .collection('user-domains').where('users', 'array-contains', req.headers.uid).get();
 
                 if (domainCollection && domainCollection.docs.length > 0) {
@@ -30,31 +30,30 @@ export class DomainRest extends DynRestBase {
             res.status(500).send({ error });
         }
     }
+
+    async post(req: Request, res: Response) {
+        try {
+            const domainCollection = await admin.firestore()
+            .collection('user-domains').where('users', 'array-contains', req.headers.uid).get();
+
+            if (!domainCollection || domainCollection.docs.length === 0) {
+                const domainRecord = {
+                    name: req.body.name,
+                    owner: req.body.uid,
+                    admins: [req.body.uid],
+                    users: [req.body.uid]
+                }
+
+                const docRef = await admin.firestore().collection('user-domains').add(domainRecord);
+                const doc = await admin.firestore().collection('user-domains').doc(docRef.id).get();
+                await admin.auth().setCustomUserClaims(req.body.uid, { domainId: doc.id });
+                res.send(doc.data());
+            } else {
+                res.status(403).send();
+            }
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
 }
-
-// export const getUserDomain = async (req: express.Request, res) => {
-//     try {
-//         console.log(req.headers);
-//         if (_.has(req, 'headers.uid')) {
-//             const domainCollection = await firestore().collection('user-domains').where('users', 'array-contains', req.headers.uid).get();
-//             domainCollection && domainCollection.docs.length > 0 ? res.send({ id: domainCollection.docs[0].id }) : res.status(404).send();
-//         } else {
-//             res.status(404).send();
-//         }
-//     } catch (error) {
-//         console.log(error);
-//         res.status(500).send({ error });
-//     }
-// };
-
-// export const createUserDomain = async (req, res) => {
-//     try {
-//         const docRef = await firestore().collection('user-domains').add({ 'name': req.body.name, users: [req.body.uid] });
-//         const doc = await firestore().collection('user-domains').doc(docRef.id).get();
-//         res.send(doc.data());
-//     } catch (error) {
-//         console.log(error);
-//         res.status(500).send({ error });
-//     }
-// };
-
