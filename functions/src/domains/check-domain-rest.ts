@@ -8,10 +8,10 @@ export class CheckDomainRest extends DynRestBase {
         super(domainApp);
     }
 
-    async get(req: Request, res: Response) {
+    async getId(req: Request, res: Response, next, id) {
         try {
             const domainCollection = await admin.firestore()
-                .collection('user-domains').select('name').get();
+                .collection('user-domains').where('name', '==', id).select('name').get();
 
             if (domainCollection && domainCollection.docs.length > 0) {
                 res.json(domainCollection);

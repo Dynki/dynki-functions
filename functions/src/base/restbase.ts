@@ -2,7 +2,7 @@ import { Express, Request, Response } from 'express';
 
 export interface RestBase {
     get(req: Request, res: Response): void;
-    getId(req: Request, res: Response): void;
+    getId(req: Request, res: Response, next: any, id: any): void;
     post(req: Request, res: Response): void;
     put(req: Request, res: Response): void;
     delete(req: Request, res: Response): void;
@@ -21,7 +21,7 @@ export class DynRestBase implements RestBase {
         res.status(404).send('Resource not implemented!');
     }
 
-    public async getId(req: Request, res: Response) {
+    public async getId(req: Request, res: Response, next, id) {
         res.status(404).send('Resource not implemented!');
     }
 
@@ -55,8 +55,9 @@ export class DynRestBase implements RestBase {
         .post(this.post);
 
         app.route('/:id')
-        .get(this.getId)
         .put(this.put)
         .delete(this.delete);
+
+        app.param('id', this.getId);
     }
 }
