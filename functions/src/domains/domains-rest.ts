@@ -33,14 +33,11 @@ export class DomainRest extends DynRestBase {
 
     async post(req: Request, res: Response) {
         try {
-            console.log('Domain::Post::Start');
             const domainCollection = await admin.firestore()
             .collection('user-domains').where('users', 'array-contains', req.headers.uid).get();
 
-            console.log('Domain::Post::1');
             const re = RegExp('^[0-9a-zA-Z \b]+$');
             if ((!domainCollection || domainCollection.docs.length === 0) && re.test(req.body.name)) {
-                console.log('Domain::Post::2');
                 const domainRecord = {
                     name: req.body.name,
                     display_name: req.body.name.toLocaleLowerCase(),
@@ -49,28 +46,18 @@ export class DomainRest extends DynRestBase {
                     users: [req.body.uid]
                 }
 
-                console.log('Domain::Post::3');
                 const docRef = await admin.firestore().collection('user-domains').add(domainRecord);
-                console.log('Domain::Post::3a');
                 const doc = await admin.firestore().collection('user-domains').doc(docRef.id).get();
-                console.log('Domain::Post::3b');
                 await admin.messaging().sendToTopic('assign-domain', { data: { uid: req.body.uid, domainId: doc.id } });
-                console.log('Domain::Post::4');
                 res.json({ id: doc.data().id });
             } else {
-                console.log('Domain::Post::5');
-
                 if (re.test(req.body.name)) {
                     res.status(403).send();
                 } else {
                     res.status(406).send();
                 }
-                console.log('Domain::Post::6');
-
             }
         } catch (error) {
-            console.log('Domain::Post::Error');
-
             console.log(error);
             res.status(500).send({ error });
         }
