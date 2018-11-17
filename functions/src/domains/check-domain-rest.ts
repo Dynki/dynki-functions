@@ -8,13 +8,14 @@ export class CheckDomainRest extends DynRestBase {
         super(domainApp);
     }
 
-    async getId(req: Request, res: Response, next, id) {
+    async getId(req: Request, res: any, next, id) {
         try {
             const domainCollection = await admin.firestore()
-                .collection('user-domains').where('name', '==', id).select('name').get();
+                .collection('user-domains').where('name', '==', id.toLocaleLowerCase()).select('name').get();
 
-            if (domainCollection && domainCollection.docs.length > 0) {
-                res.json(domainCollection);
+            if (!domainCollection || domainCollection.docs.length === 0) {
+                res.id = { resource: 'unique'};
+                next();
             } else {
                 res.status(404).send();
             } 
@@ -23,4 +24,14 @@ export class CheckDomainRest extends DynRestBase {
             res.status(500).send({ error });
         }
     }
+
+    async returnId(req: Request, res: any) {
+        try {
+            res.json(res.id);
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
+
 }

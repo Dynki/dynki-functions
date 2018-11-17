@@ -25,6 +25,10 @@ export class DynRestBase implements RestBase {
         res.status(404).send('Resource not implemented!');
     }
 
+    public async returnId(req: Request, res: Response) {
+        res.status(404).send('Resource not implemented!');
+    }
+
     public async post(req: Request, res: Response) {
         res.status(404).send('Resource not implemented!');
     }
@@ -55,6 +59,7 @@ export class DynRestBase implements RestBase {
         .post(this.post);
 
         app.route('/:id')
+        .get(this.returnId)
         .put(this.put)
         .delete(this.delete);
 
