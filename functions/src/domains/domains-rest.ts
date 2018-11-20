@@ -18,7 +18,7 @@ export class DomainRest extends DynRestBase {
 
                 if (domainCollection && domainCollection.docs.length > 0) {
                     console.log('Domain::Send::', { id: domainCollection.docs[0].id });
-                    res.json({ id: domainCollection.docs[0].id });
+                    res.json({ id: domainCollection.docs[0].id, display_name: domainCollection.docs[0].data().display_name });
                 } else {
                     res.status(404).send();
                 } 
@@ -39,8 +39,8 @@ export class DomainRest extends DynRestBase {
             const re = RegExp('^[0-9a-zA-Z \b]+$');
             if ((!domainCollection || domainCollection.docs.length === 0) && re.test(req.body.name)) {
                 const domainRecord = {
-                    name: req.body.name,
-                    display_name: req.body.name.toLocaleLowerCase(),
+                    name: req.body.name.toLocaleLowerCase(),
+                    display_name: req.body.name,
                     owner: req.body.uid,
                     admins: [req.body.uid],
                     users: [req.body.uid]
@@ -48,7 +48,9 @@ export class DomainRest extends DynRestBase {
 
                 const docRef = await admin.firestore().collection('user-domains').add(domainRecord);
                 const doc = await admin.firestore().collection('user-domains').doc(docRef.id).get();
-                await admin.messaging().sendToTopic('assign-domain', { data: { uid: req.body.uid, domainId: doc.id } });
+                await admin.firestore().collection('domains').doc(docRef.id).set({ display_name: req.body.name });
+                await admin.auth().setCustomUserClaims(req.body.uid, {domainId: docRef.id});
+
                 res.json({ id: doc.data().id });
             } else {
                 if (re.test(req.body.name)) {
