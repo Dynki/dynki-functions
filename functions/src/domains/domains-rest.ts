@@ -48,7 +48,18 @@ export class DomainRest extends DynRestBase {
 
                 const docRef = await admin.firestore().collection('user-domains').add(domainRecord);
                 const doc = await admin.firestore().collection('user-domains').doc(docRef.id).get();
-                await admin.firestore().collection('domains').doc(docRef.id).set({ display_name: req.body.name });
+                await admin.firestore().collection('domains').doc(docRef.id)
+                    .set({
+                        users: {
+                            [req.body.uid] : {
+                                email: req.body.email,
+                                displayName: req.body.displayName,
+                                messages: []
+                            }
+                        },
+                        display_name: req.body.name 
+                    });
+
                 await admin.auth().setCustomUserClaims(req.body.uid, {domainId: docRef.id});
 
                 res.json({ id: doc.data().id });
