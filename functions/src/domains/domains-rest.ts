@@ -54,7 +54,28 @@ export class DomainRest extends DynRestBase {
                             [req.body.uid] : {
                                 email: req.body.email,
                                 displayName: req.body.displayName,
-                                messages: []
+                                messages: [{
+                                    id: 'initial',
+                                    from: 'Dynki Team',
+                                    to: ['Dean Selvey'],
+                                    subject: 'Welcome to Dynki',
+                                    body: {
+                                      ops: [
+                                      { insert: 'Hi @Dean Selvey, \n\n' +
+                                      'Thanks for choosing to give us a try. \n' +
+                                      'You can now invite your people to your team. \n\n' +
+                                      'Once again thanks for choosing us. \n\n' +
+                                      'Regards \n' },
+                                      { insert: 'Team Dynki', attributes: { bold: true } }
+                                    ]},
+                                    sent: true,
+                                    created: new Date(),
+                                    author: 'Dynki Team',
+                                    status: 'Unread',
+                                    read: false,
+                                    reading: false,
+                                    selected: false
+                                }]
                             }
                         },
                         display_name: req.body.name 
