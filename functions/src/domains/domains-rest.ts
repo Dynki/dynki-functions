@@ -48,38 +48,41 @@ export class DomainRest extends DynRestBase {
 
                 const docRef = await admin.firestore().collection('user-domains').add(domainRecord);
                 const doc = await admin.firestore().collection('user-domains').doc(docRef.id).get();
-                await admin.firestore().collection('domains').doc(docRef.id)
-                    .set({
-                        users: {
-                            [req.body.uid] : {
-                                email: req.body.email,
-                                displayName: req.body.displayName,
-                                messages: [{
-                                    id: 'initial',
-                                    from: 'Dynki Team',
-                                    to: ['Dean Selvey'],
-                                    subject: 'Welcome to Dynki',
-                                    body: {
-                                      ops: [
-                                      { insert: 'Hi @Dean Selvey, \n\n' +
-                                      'Thanks for choosing to give us a try. \n' +
-                                      'You can now invite your people to your team. \n\n' +
-                                      'Once again thanks for choosing us. \n\n' +
-                                      'Regards \n' },
-                                      { insert: 'Team Dynki', attributes: { bold: true } }
-                                    ]},
-                                    sent: true,
-                                    created: new Date(),
-                                    author: 'Dynki Team',
-                                    status: 'Unread',
-                                    read: false,
-                                    reading: false,
-                                    selected: false
-                                }]
-                            }
-                        },
-                        display_name: req.body.name 
-                    });
+                const domDoc = await admin.firestore().collection('domains').doc(docRef.id).set({display_name: req.body.name});
+                admin.firestore().collection('domains').doc(docRef.id).collection('users').doc(req.body.uid).set({
+                    email: req.body.email,
+                    displayName: req.body.displayName,
+                });
+                
+                admin.firestore()
+                .collection('domains')
+                .doc(docRef.id)
+                .collection('users')
+                .doc(req.body.uid)
+                .collection('messages')
+                .doc('initial')
+                .set({
+                    id: 'initial',
+                    from: 'Dynki Team',
+                    to: ['Dean Selvey'],
+                    subject: 'Welcome to Dynki',
+                    body: {
+                        ops: [
+                        { insert: 'Hi @Dean Selvey, \n\n' +
+                        'Thanks for choosing to give us a try. \n' +
+                        'You can now invite your people to your team. \n\n' +
+                        'Once again thanks for choosing us. \n\n' +
+                        'Regards \n' },
+                        { insert: 'Team Dynki', attributes: { bold: true } }
+                    ]},
+                    sent: true,
+                    created: new Date(),
+                    author: 'Dynki Team',
+                    status: 'Unread',
+                    read: false,
+                    reading: false,
+                    selected: false
+                });
 
                 await admin.auth().setCustomUserClaims(req.body.uid, {domainId: docRef.id});
 
