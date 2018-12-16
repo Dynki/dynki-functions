@@ -68,7 +68,7 @@ export class DomainRest extends DynRestBase {
                     subject: 'Welcome to Dynki',
                     body: {
                         ops: [
-                        { insert: 'Hi @Dean Selvey, \n\n' +
+                        { insert: 'Hi, \n\n' +
                         'Thanks for choosing to give us a try. \n' +
                         'You can now start creating boards. \n\n' +
                         'Once again thanks for choosing us. \n\n' +
