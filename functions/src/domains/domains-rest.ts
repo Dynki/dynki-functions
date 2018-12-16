@@ -70,7 +70,7 @@ export class DomainRest extends DynRestBase {
                         ops: [
                         { insert: 'Hi @Dean Selvey, \n\n' +
                         'Thanks for choosing to give us a try. \n' +
-                        'You can now invite your people to your team. \n\n' +
+                        'You can now start creating boards. \n\n' +
                         'Once again thanks for choosing us. \n\n' +
                         'Regards \n' },
                         { insert: 'Team Dynki', attributes: { bold: true } }
