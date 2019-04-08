@@ -46,6 +46,7 @@ export class DynRestBase implements RestBase {
     }
 
     error(req: Request, res: Response, payload: any) {
+        console.log('Error::res', res);
         this.send(req, res, 500, payload);
     }
 
