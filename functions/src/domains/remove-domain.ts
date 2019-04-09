@@ -3,47 +3,41 @@ import * as admin from 'firebase-admin';
 
 exports.removeDomain = functions.auth.user().onDelete(async (user) => {
     try {
-        console.log('On Delete::Start');
-        // Create a batch to store all the records we wish to delete.
-
-        console.log('On Delete::1');
         // Get the correct user-domains document.
         const userDomainSnapshot = await admin.firestore().collection('user-domains').where('owner', '==', user.uid).get();
-        userDomainSnapshot.forEach(function wrapper(){async udDoc => {
-            console.log('On Delete::2::uDoc.id::', udDoc.id);
+        const docId = userDomainSnapshot.docs[0].id;
 
-            // Find the correct 'domains' document and add it to the batch for deletion.
-            await admin.firestore().collection('domains').doc(udDoc.id).collection('users').get().then(userSnapShot => {
-                console.log('On Delete::2a');
-                userSnapShot.docs.forEach(userDoc => userDoc.ref.delete());
-            });
+        // Find the correct 'domains' document and add it to the batch for deletion.
+        const messagesSnapShot = await admin.firestore().collection('domains').doc(docId).collection('users').doc(user.uid).collection('messages').get();
 
-            console.log('On Delete::3');
+        for(const msgDoc of messagesSnapShot.docs) {
+            msgDoc.ref.delete();
+        }
 
-            // Find the correct 'boardsInDomain' document and add it to the batch for deletion.
-            await admin.firestore().collection('domains').doc(udDoc.id).collection('boardsInDomain').get().then(bidSnapshot => {
-                console.log('On Delete::2b');
-                bidSnapshot.docs.forEach(bidDoc => bidDoc.ref.delete());
-            });
+        admin.firestore().collection('domains').doc(docId).collection('users').doc(user.uid).delete();
 
-            console.log('On Delete::4');
+        // Find the correct 'domains' document and add it to the batch for deletion.
+        const userSnapShot = await admin.firestore().collection('domains').doc(docId).collection('users').get();
+        for(const userDoc of userSnapShot.docs) {
+            userDoc.ref.delete();
+        }
+        
+        // Find the correct 'boardsInDomain' document and add it to the batch for deletion.
+        const bidSnapshot = await admin.firestore().collection('domains').doc(docId).collection('boardsInDomain').get();
+        for(const bidDoc of bidSnapshot.docs) {
+            bidDoc.ref.delete();
+        }
 
-            // Find the correct 'boards' document and add it to the batch for deletion.
-            await admin.firestore().collection('domains').doc(udDoc.id).collection('boards').get().then(boardsSnapshot => {
-                console.log('On Delete::2c');
-                boardsSnapshot.docs.forEach(boardsDoc => boardsDoc.ref.delete());
-            });
+        // Find the correct 'boards' document and add it to the batch for deletion.
+        const boardsSnapshot = await admin.firestore().collection('domains').doc(docId).collection('boards').get();
+        for(const boardsDoc of boardsSnapshot.docs) {
+            boardsDoc.ref.delete();
+        }
 
-            console.log('On Delete::5');
+        admin.firestore().collection('domains').doc(docId).delete();
 
-            // Add the 'user-domains' document to the batch for deletion.
-            udDoc.ref.delete();
-
-            console.log('On Delete::6');
-            return true;
-        }});
-
-        console.log('On Delete::7');
+        // Add the 'user-domains' document to the batch for deletion.
+        userDomainSnapshot.docs[0].ref.delete();
     } catch (error) {
         console.log(error);
     }
