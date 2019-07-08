@@ -23,6 +23,7 @@ export async function authCheck(req: Request, res: Response, next: any) {
         await admin.auth().verifyIdToken(token);
         return next();        
     } catch (error) {
+        console.log(error);
         return res.status(500).send('Error: Invalid token!');
     }
 }
