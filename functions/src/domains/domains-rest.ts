@@ -32,6 +32,50 @@ export class DomainRest extends DynRestBase {
         }
     }
 
+    async getId(req: Request, res: Response, next, id) {
+        try {
+            if (_.has(req, 'headers.authorization')) {
+                const token = req.headers.authorization;
+
+                // Verify the ID token first.
+                admin.auth().verifyIdToken(token).then(async (decodedToken) => {
+                    const uid = decodedToken.uid;
+
+                    const domainCollection = await admin.firestore()
+                        .collection('user-domains')
+                        .where(admin.firestore.FieldPath.documentId(), '==', id)
+                        .where('users', 'array-contains', uid)
+                        .get();
+    
+                    if (domainCollection && domainCollection.docs.length > 0) {
+                        console.log('Domain::Send::', { id: domainCollection.docs[0].id });
+                        req.body.record = domainCollection.docs[0];
+                        next();
+                        res.json({ id: domainCollection.docs[0].id, display_name: domainCollection.docs[0].data().display_name });
+                    } else {
+                        res.status(404).send();
+                    } 
+                }).catch(error => {
+                    res.status(500).send('Error validating custom claims');
+                });
+            } else {
+                res.status(404).send();
+            }
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
+
+    async returnId(req: Request, res: Response) {
+        try {
+            res.json({ id: req.body.record.id, display_name: req.body.record.data() });
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
+
     async post(req: Request, res: Response) {
         try {
             const domainRecord = {
