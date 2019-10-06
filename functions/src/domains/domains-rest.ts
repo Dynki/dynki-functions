@@ -19,7 +19,12 @@ export class DomainRest extends DynRestBase {
 
                 if (domainCollection && domainCollection.docs.length > 0) {
                     console.log('Domain::Send::', { id: domainCollection.docs[0].id });
-                    res.json({ id: domainCollection.docs[0].id, display_name: domainCollection.docs[0].data().display_name });
+
+                    const domains = domainCollection.docs.map(d => {
+                        return { id: d.id, display_name: d.data().display_name  }
+                    });
+
+                    res.json({ domains });
                 } else {
                     res.status(404).send();
                 } 
