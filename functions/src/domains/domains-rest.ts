@@ -24,7 +24,7 @@ export class DomainRest extends DynRestBase {
                         return { id: d.id, display_name: d.data().display_name  }
                     });
 
-                    res.json({ domains });
+                    res.json(domains);
                 } else {
                     res.status(404).send();
                 } 
@@ -55,8 +55,24 @@ export class DomainRest extends DynRestBase {
                     if (domainCollection && domainCollection.docs.length > 0) {
                         console.log('Domain::Send::', { id: domainCollection.docs[0].id });
                         req.body.record = domainCollection.docs[0];
+
+                        const retrievedData = domainCollection.docs[0].data();
+
+                        const mappedDomain = {
+                            id: domainCollection.docs[0].id,
+                            display_name: retrievedData.display_name,
+                            status: 'Enabled',
+                            groups: [
+                                { id: '1234', name: 'Administrators', members: ['uid1']},
+                                { id: '2345', name: 'Users', members: ['uid1', 'uid2']},
+                            ],
+                            members: [
+                                { uid: 'dsdsada', email: 'deaf@ear.com', status: 'Active', memberOf: ['Administrators', 'Users'] }
+                            ]
+                        }
+
                         next();
-                        res.json({ id: domainCollection.docs[0].id, display_name: domainCollection.docs[0].data().display_name });
+                        res.json(mappedDomain);
                     } else {
                         res.status(404).send();
                     } 
