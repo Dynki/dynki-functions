@@ -1,4 +1,4 @@
-import { Express, Request, Response } from 'express';
+import { Express, Request, Response, Router } from 'express';
 import * as admin from 'firebase-admin'; 
 import * as _ from 'lodash';
 import newGuid from '../utils/guid';
@@ -8,6 +8,18 @@ import { DynRestBase } from '../base/restbase';
 export class DomainRest extends DynRestBase {
     constructor(public domainApp: Express) {
         super(domainApp);
+
+        const groupsRouter = Router({ mergeParams: true });
+
+        groupsRouter.route('/')
+            // tslint:disable-next-line:no-empty
+            .post(function(req, res) {})
+        groupsRouter.route('/:item_id')
+            .get(function(req, res) {
+                return res.send(req.params);
+            });
+
+        domainApp.use('/domains/:id/groups', groupsRouter);
     }
 
     async get(req: Request, res: Response) {
@@ -54,7 +66,7 @@ export class DomainRest extends DynRestBase {
     
                     if (domainCollection && domainCollection.docs.length > 0) {
                         console.log('Domain::Send::', { id: domainCollection.docs[0].id });
-                        req.body.record = domainCollection.docs[0];
+                        
 
                         const retrievedData = domainCollection.docs[0].data();
 
@@ -71,8 +83,10 @@ export class DomainRest extends DynRestBase {
                             ]
                         }
 
+                        req.body.record = mappedDomain;
+                        req.body.rawRecord = domainCollection.docs[0];
                         next();
-                        res.json(mappedDomain);
+                        
                     } else {
                         res.status(404).send();
                     } 
@@ -90,7 +104,7 @@ export class DomainRest extends DynRestBase {
 
     async returnId(req: Request, res: Response) {
         try {
-            res.json({ id: req.body.record.id, display_name: req.body.record.data() });
+            res.json(req.body.record);
         } catch (error) {
             console.log(error);
             res.status(500).send({ error });
@@ -153,4 +167,26 @@ export class DomainRest extends DynRestBase {
             res.status(500).send({ error });
         }
     }
+
+    async postGroup(req: Request, res: Response) {
+        try {
+
+            const domainData = req.body.rawData.data();
+            const domainGroups = domainData.groups ? domainData.groups : [];
+
+            const newGroup = { id: newGuid(), name: req.body.group_name, members: [req.body.uid] }
+
+            const mergedGroups = [...domainGroups, newGroup];
+
+            const doc = await admin.firestore().collection('user-domains').doc(req.body.rawData.id).set({ 
+                groups: mergedGroups
+            });
+
+            res.json(newGroup);
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
+
 }
