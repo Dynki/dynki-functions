@@ -20,7 +20,8 @@ export async function authCheck(req: Request, res: Response, next: any) {
     }
 
     try {
-        await admin.auth().verifyIdToken(token);
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        req.body.uid = decodedToken.uid;
         return next();        
     } catch (error) {
         console.log(error);
