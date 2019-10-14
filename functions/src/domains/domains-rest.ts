@@ -60,7 +60,7 @@ export class DomainRest extends DynRestBase {
 
     private isAdmin(req: Request) : boolean {
         const memberRecord = req.body.rawRecord.members.find(m => m.uid === req.body.uid);
-        return memberRecord.memberOf.indexOf('Administrators');
+        return memberRecord.memberOf.indexOf('Administrators') > -1;
     }
 
     /**
