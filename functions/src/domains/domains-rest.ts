@@ -25,17 +25,17 @@ export class DomainRest extends DynRestBase {
         const groupsRouter = Router({ mergeParams: true });
 
         // Create a group on the domain
-        groupsRouter.route('/').post(this.postGroup)
+        groupsRouter.route('/').post(this.postGroup.bind(this))
 
         // Get all groups on the domain
-        groupsRouter.route('/').get(this.getGroups);
+        groupsRouter.route('/').get(this.getGroups.bind(this));
 
         // Individual group mapping.
-        groupsRouter.route('/:group_id').get(this.returnGroup);
-        groupsRouter.route('/:group_id').put(this.updateGroup);
-        groupsRouter.route('/:group_id').delete(this.deleteGroup);
+        groupsRouter.route('/:group_id').get(this.returnGroup.bind(this));
+        groupsRouter.route('/:group_id').put(this.updateGroup.bind(this));
+        groupsRouter.route('/:group_id').delete(this.deleteGroup.bind(this));
 
-        this.domainApp.param('group_id', this.getGroupId);
+        this.domainApp.param('group_id', this.getGroupId.bind(this));
         this.domainApp.use('/:id/groups', groupsRouter);
 
     }
@@ -44,23 +44,26 @@ export class DomainRest extends DynRestBase {
         const membersRouter = Router({ mergeParams: true });
 
         // Create a member on the domain
-        membersRouter.route('/').post(this.postMember)
+        membersRouter.route('/').post(this.postMember.bind(this))
 
         // Get all members on the domain
-        membersRouter.route('/').get(this.getMembers);
+        membersRouter.route('/').get(this.getMembers.bind(this));
 
         // Individual member mapping.
-        membersRouter.route('/:member_id').get(this.returnMember);
-        membersRouter.route('/:member_id').put(this.updateMember);
-        membersRouter.route('/:member_id').delete(this.deleteMember);
+        membersRouter.route('/:member_id').get(this.returnMember.bind(this));
+        membersRouter.route('/:member_id').put(this.updateMember.bind(this));
+        membersRouter.route('/:member_id').delete(this.deleteMember.bind(this));
 
-        this.domainApp.param('member_id', this.getMemberId);
+        this.domainApp.param('member_id', this.getMemberId.bind(this));
         this.domainApp.use('/:id/members', membersRouter);
     }
 
-    private isAdmin(req: Request) : boolean {
-        const memberRecord = req.body.rawRecord.members.find(m => m.uid === req.body.uid);
-        return memberRecord.memberOf.indexOf('Administrators') > -1;
+    isAdmin = (req: Request) : boolean => {
+        const memberRecord = req.body.rawRecord.members.find(m => m.uid === req.body.hiddenUid);
+        console.log('IsAdminA', memberRecord); 
+        const isAnAdmin = memberRecord && memberRecord.memberOf.indexOf('Administrators') > -1;
+        console.log('IsAdminB', isAnAdmin); 
+        return isAnAdmin;
     }
 
     /**
@@ -254,9 +257,12 @@ export class DomainRest extends DynRestBase {
     }
 
     async postGroup(req: Request, res: Response) {
+        let log = "A";
         try {
+            log = "B";
 
             if (this.isAdmin(req)) {
+                log = "C";
                 const domainData = req.body.rawRecord;
                 const domainGroups = domainData.groups ? domainData.groups : [];
                 const newGroup = { id: newGuid(), name: req.body.group_name, members: [req.headers.uid] }
@@ -266,6 +272,8 @@ export class DomainRest extends DynRestBase {
                     groups: mergedGroups
                 });
 
+                log = "D";
+
                 res.json(newGroup);
             } else {
                 res.status(401).send('Unauthorised to perform this operation');
@@ -273,7 +281,7 @@ export class DomainRest extends DynRestBase {
 
         } catch (error) {
             console.log(error);
-            res.status(500).send({ error: req.body.log });
+            res.status(500).send({ error: log });
         }
     }
 

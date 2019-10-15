@@ -21,7 +21,7 @@ export async function authCheck(req: Request, res: Response, next: any) {
 
     try {
         const decodedToken = await admin.auth().verifyIdToken(token);
-        req.body.uid = decodedToken.uid;
+        req.body.hiddenUid = decodedToken.uid;
         return next();        
     } catch (error) {
         console.log(error);
