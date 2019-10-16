@@ -285,13 +285,15 @@ export class DomainRest extends DynRestBase {
 
             if (this.isAdmin(req)) {
                 const domainData = req.body.rawRecord;
-                const groupToUpdate = domainData.groups.find(g => g.id === req.body.group.id);
+                const groupToUpdate = domainData.groups.find(g => g.id === req.params.group_id);
 
-                if (groupToUpdate.group_name === 'Administrators' || groupToUpdate.group_name === 'Users') {
+                if (groupToUpdate.name === 'Administrators' || groupToUpdate.name === 'Users') {
                     res.status(403).send({ error: 'Cannot update this group' });
                 } else {
                     const domainGroups = domainData.groups.map(g => {
-                        g.group_name = req.body.group_name;
+                        if (g.id === req.params.group_id) {
+                            g.name = req.body.group_name;
+                        }
                         return g;
                     });
 
@@ -313,42 +315,30 @@ export class DomainRest extends DynRestBase {
     }
 
     async deleteGroup(req: Request, res: Response) {
-        let log = 'A';
         try {
             if (this.isAdmin(req)) {
-                log = 'B';
                 const domainData = req.body.rawRecord;
                 const groupToDelete = domainData.groups.find(g => g.id === req.params.group_id);
-                log = 'C';
 
-                if (groupToDelete.group_name === 'Administrators' || groupToDelete.group_name === 'Users') {
-                    log = 'D';
+                if (groupToDelete.name === 'Administrators' || groupToDelete.name === 'Users') {
                     res.status(403).send({ error: 'Cannot delete this group' });
                 } else {
-                    log = 'E';
-
                     const domainGroups = domainData.groups.filter(g => {
                         return g.id !== req.params.group_id;
-                    })
-        
-                    log = 'F';
+                    });
 
                     const doc = await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
                         groups: domainGroups
                     });
         
-                    log = 'G';
-
                     res.sendStatus(200);
                 }
             } else {
-                log = 'H';
-
                 res.status(401).send('Unauthorised to perform this operation');
             }
         } catch (error) {
             console.log(error);
-            res.status(500).send({ error: log });
+            res.status(500).send({ error });
         }
     }
 
