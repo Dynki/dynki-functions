@@ -25,7 +25,7 @@ export class DomainRest extends DynRestBase {
         const groupsRouter = Router({ mergeParams: true });
 
         // Create a group on the domain
-        groupsRouter.route('/').post(this.postGroup.bind(this))
+        groupsRouter.route('/').post(this.postGroup.bind(this));
 
         // Get all groups on the domain
         groupsRouter.route('/').get(this.getGroups.bind(this));
@@ -35,7 +35,7 @@ export class DomainRest extends DynRestBase {
         groupsRouter.route('/:group_id').put(this.updateGroup.bind(this));
         groupsRouter.route('/:group_id').delete(this.deleteGroup.bind(this));
 
-        this.domainApp.param('group_id', this.getGroupId.bind(this));
+        this.domainApp.param('group_id', this.getGroupId);
         this.domainApp.use('/:id/groups', groupsRouter);
 
     }
@@ -239,6 +239,7 @@ export class DomainRest extends DynRestBase {
 
     async getGroupId(req: Request, res: Response, next, id) {
         try {
+            req.body.groupId = id;
             req.body.group = req.body.rawRecord.groups.find(g => g.id === id);
             next();
         } catch (error) {
@@ -257,12 +258,8 @@ export class DomainRest extends DynRestBase {
     }
 
     async postGroup(req: Request, res: Response) {
-        let log = "A";
         try {
-            log = "B";
-
             if (this.isAdmin(req)) {
-                log = "C";
                 const domainData = req.body.rawRecord;
                 const domainGroups = domainData.groups ? domainData.groups : [];
                 const newGroup = { id: newGuid(), name: req.body.group_name, members: [req.headers.uid] }
@@ -272,8 +269,6 @@ export class DomainRest extends DynRestBase {
                     groups: mergedGroups
                 });
 
-                log = "D";
-
                 res.json(newGroup);
             } else {
                 res.status(401).send('Unauthorised to perform this operation');
@@ -281,7 +276,7 @@ export class DomainRest extends DynRestBase {
 
         } catch (error) {
             console.log(error);
-            res.status(500).send({ error: log });
+            res.status(500).send({ error });
         }
     }
 
@@ -318,32 +313,42 @@ export class DomainRest extends DynRestBase {
     }
 
     async deleteGroup(req: Request, res: Response) {
+        let log = 'A';
         try {
-
             if (this.isAdmin(req)) {
+                log = 'B';
                 const domainData = req.body.rawRecord;
-                const groupToDelete = domainData.groups.find(g => g.id === req.body.group.id);
+                const groupToDelete = domainData.groups.find(g => g.id === req.params.group_id);
+                log = 'C';
 
                 if (groupToDelete.group_name === 'Administrators' || groupToDelete.group_name === 'Users') {
+                    log = 'D';
                     res.status(403).send({ error: 'Cannot delete this group' });
                 } else {
+                    log = 'E';
 
                     const domainGroups = domainData.groups.filter(g => {
-                        return g.id !== req.body.group.id;
+                        return g.id !== req.params.group_id;
                     })
         
+                    log = 'F';
+
                     const doc = await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
                         groups: domainGroups
                     });
         
+                    log = 'G';
+
                     res.sendStatus(200);
                 }
             } else {
+                log = 'H';
+
                 res.status(401).send('Unauthorised to perform this operation');
             }
         } catch (error) {
             console.log(error);
-            res.status(500).send({ error: req.body.log });
+            res.status(500).send({ error: log });
         }
     }
 
