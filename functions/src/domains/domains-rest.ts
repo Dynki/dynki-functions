@@ -404,18 +404,30 @@ export class DomainRest extends DynRestBase {
             if (this.isAdmin(req)) {
 
                 const domainData = req.body.rawRecord;
-                const memberToUpdate = domainData.members.find(m => m.id === req.body.members.id);
+                const memberToUpdate = domainData.members.find(m => m.id === req.params.member_id);
 
-                const domainGroups = domainData.groups.map(g => {
-                    g.group_name = req.body.group_name;
-                    return g;
-                });
-
-                    const doc = await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
-                        groups: domainGroups
+                if (memberToUpdate.id === req.body.rawRecord.owner && req.body.members && req.body.members.indexOf('Administrators') === -1) {
+                    res.status(403).send('Cannot remove this member from Administrators group');
+                } else {
+                    const domainMembers = domainData.members.map(m => {
+                        if (req.body.memberOf) {
+                            m.memberOf = req.body.memberOf;
+                        }
+    
+                        if (req.body.status) {
+                            m.status = req.body.status
+                        }
+    
+                        return m;
                     });
-
+    
+                    await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
+                        members: domainMembers
+                    });
+    
                     res.sendStatus(200);
+                }
+
             } else {
                 res.status(401).send('Unauthorised to perform this operation');
             }
