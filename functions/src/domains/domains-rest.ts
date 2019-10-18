@@ -60,9 +60,8 @@ export class DomainRest extends DynRestBase {
 
     isAdmin = (req: Request) : boolean => {
         const memberRecord = req.body.rawRecord.members.find(m => m.uid === req.body.hiddenUid);
-        console.log('IsAdminA', memberRecord); 
-        const isAnAdmin = memberRecord && memberRecord.memberOf.indexOf('Administrators') > -1;
-        console.log('IsAdminB', isAnAdmin); 
+        const adminGroupId = req.body.rawRecord.groups.find(g => g.name === 'Administrators');
+        const isAnAdmin = memberRecord && memberRecord.memberOf.indexOf(adminGroupId.id) > -1;
         return isAnAdmin;
     }
 
@@ -159,6 +158,9 @@ export class DomainRest extends DynRestBase {
         try {
             if (this.isAdmin(req)) {
 
+                const adminGroupId = newGuid();
+                const usersGroupId = newGuid();
+
                 const domainRecord = {
                     name: newGuid(),
                     display_name: req.body.name,
@@ -166,11 +168,11 @@ export class DomainRest extends DynRestBase {
                     admins: [req.body.uid],
                     users: [req.body.uid],
                     groups: [
-                        { id: newGuid(), name: 'Administrators', members: [req.headers.uid] },
-                        { id: newGuid(), name: 'Users', members: [req.headers.uid] }
+                        { id: adminGroupId, name: 'Administrators', members: [req.headers.uid] },
+                        { id: usersGroupId, name: 'Users', members: [req.headers.uid] }
                     ],
                     members: [
-                        { id: newGuid(), uid: req.headers.uid, email: req.body.email, status: 'Active', memberOf: ['Administrators', 'Users'] }
+                        { id: newGuid(), uid: req.headers.uid, email: req.body.email, status: 'Active', memberOf: [adminGroupId, usersGroupId] }
                     ]
                 }
 
@@ -380,7 +382,8 @@ export class DomainRest extends DynRestBase {
             if (this.isAdmin(req)) {
                 const domainData = req.body.rawRecord;
                 const domainMembers = domainData.members ? domainData.members : [];
-                const newMember = { id: newGuid(), uid: undefined, email: req.body.email, status: 'Pending', memberOf: ['Users'] }
+                const usersGroupId = domainData.groups.find(g => g.name === 'Users');
+                const newMember = { id: newGuid(), uid: undefined, email: req.body.email, status: 'Pending', memberOf: [usersGroupId] }
     
                 const mergedMembers = [...domainMembers, newMember];
     
@@ -404,18 +407,23 @@ export class DomainRest extends DynRestBase {
             if (this.isAdmin(req)) {
 
                 const domainData = req.body.rawRecord;
-                const memberToUpdate = domainData.members.find(m => m.id === req.params.member_id);
+                const memberToUpdate = domainData.members.find(m => m.uid === req.params.member_id);
+                const adminGroupId = domainData.groups.find(g => g.name === 'Administrators');
+                const containsAdminGroup = req.body.memberOf.indexOf(adminGroupId) > -1;
 
-                if (memberToUpdate.id === req.body.rawRecord.owner && req.body.members && req.body.members.indexOf('Administrators') === -1) {
+                if (memberToUpdate.uid === req.body.rawRecord.owner && req.body.memberOf && containsAdminGroup) {
                     res.status(403).send('Cannot remove this member from Administrators group');
                 } else {
                     const domainMembers = domainData.members.map(m => {
-                        if (req.body.memberOf) {
-                            m.memberOf = req.body.memberOf;
-                        }
-    
-                        if (req.body.status) {
-                            m.status = req.body.status
+
+                        if (m.uid === req.params.member_id) {
+                            if (req.body.memberOf) {
+                                m.memberOf = req.body.memberOf;
+                            }
+        
+                            if (req.body.status) {
+                                m.status = req.body.status
+                            }
                         }
     
                         return m;
