@@ -4,7 +4,6 @@ import * as _ from 'lodash';
 import newGuid from '../utils/guid';
 
 import { DynRestBase } from '../base/restbase';
-import { request } from 'http';
 
 export class DomainRest extends DynRestBase {
     constructor(public domainApp: Express) {
@@ -156,70 +155,66 @@ export class DomainRest extends DynRestBase {
 
     async post(req: Request, res: Response) {
         try {
-            if (this.isAdmin(req)) {
 
-                const adminGroupId = newGuid();
-                const usersGroupId = newGuid();
+            const adminGroupId = newGuid();
+            const usersGroupId = newGuid();
 
-                const domainRecord = {
-                    name: newGuid(),
-                    display_name: req.body.name,
-                    owner: req.body.uid,
-                    admins: [req.body.uid],
-                    users: [req.body.uid],
-                    groups: [
-                        { id: adminGroupId, name: 'Administrators', members: [req.headers.uid] },
-                        { id: usersGroupId, name: 'Users', members: [req.headers.uid] }
-                    ],
-                    members: [
-                        { id: newGuid(), uid: req.headers.uid, email: req.body.email, status: 'Active', memberOf: [adminGroupId, usersGroupId] }
-                    ]
-                }
-
-                const docRef = await admin.firestore().collection('user-domains').add(domainRecord);
-                const doc = await admin.firestore().collection('user-domains').doc(docRef.id).get();
-                const domDoc = await admin.firestore().collection('domains').doc(docRef.id).set({display_name: req.body.name});
-                admin.firestore().collection('domains').doc(docRef.id).collection('users').doc(req.body.uid).set({
-                    email: req.body.email,
-                    displayName: req.body.displayName,
-                });
-                
-                admin.firestore()
-                .collection('domains')
-                .doc(docRef.id)
-                .collection('users')
-                .doc(req.body.uid)
-                .collection('messages')
-                .doc('initial')
-                .set({
-                    id: 'initial',
-                    from: 'Dynki Team',
-                    to: [req.body.email],
-                    subject: 'Welcome to Dynki',
-                    body: {
-                        ops: [
-                        { insert: 'Hi, \n\n' +
-                        'Thanks for choosing to give us a try. \n' +
-                        'You can now start creating boards. \n\n' +
-                        'Once again thanks for choosing us. \n\n' +
-                        'Regards \n' },
-                        { insert: 'Team Dynki', attributes: { bold: true } }
-                    ]},
-                    sent: true,
-                    created: new Date(),
-                    author: 'Dynki Team',
-                    status: 'Unread',
-                    read: false,
-                    reading: false,
-                    selected: false
-                });
-
-                await admin.auth().setCustomUserClaims(req.body.uid, {domainId: docRef.id});
-
-                res.json({ id: doc.data().id });
-            } else {
-                res.status(401).send('Unauthorised to perform this operation');
+            const domainRecord = {
+                name: newGuid(),
+                display_name: req.body.name,
+                owner: req.body.hiddenUid,
+                admins: [req.body.hiddenUid],
+                users: [req.body.hiddenUid],
+                groups: [
+                    { id: adminGroupId, name: 'Administrators', members: [req.body.hiddenUid] },
+                    { id: usersGroupId, name: 'Users', members: [req.body.hiddenUid] }
+                ],
+                members: [
+                    { id: newGuid(), uid: req.body.hiddenUid, email: req.body.email, status: 'Active', memberOf: [adminGroupId, usersGroupId] }
+                ]
             }
+
+            const docRef = await admin.firestore().collection('user-domains').add(domainRecord);
+            const doc = await admin.firestore().collection('user-domains').doc(docRef.id).get();
+            const domDoc = await admin.firestore().collection('domains').doc(docRef.id).set({display_name: req.body.name});
+            admin.firestore().collection('domains').doc(docRef.id).collection('users').doc(req.body.hiddenUid).set({
+                email: req.body.email,
+                displayName: req.body.displayName,
+            });
+            
+            admin.firestore()
+            .collection('domains')
+            .doc(docRef.id)
+            .collection('users')
+            .doc(req.body.hiddenUid)
+            .collection('messages')
+            .doc('initial')
+            .set({
+                id: 'initial',
+                from: 'Dynki Team',
+                to: [req.body.email],
+                subject: 'Welcome to Dynki',
+                body: {
+                    ops: [
+                    { insert: 'Hi, \n\n' +
+                    'Thanks for choosing to give us a try. \n' +
+                    'You can now start creating boards. \n\n' +
+                    'Once again thanks for choosing us. \n\n' +
+                    'Regards \n' },
+                    { insert: 'Team Dynki', attributes: { bold: true } }
+                ]},
+                sent: true,
+                created: new Date(),
+                author: 'Dynki Team',
+                status: 'Unread',
+                read: false,
+                reading: false,
+                selected: false
+            });
+
+            await admin.auth().setCustomUserClaims(req.body.hiddenUid, {domainId: docRef.id});
+
+            res.json({ id: doc.data().id });
         } catch (error) {
             console.log(error);
             res.status(500).send({ error });
@@ -329,8 +324,14 @@ export class DomainRest extends DynRestBase {
                         return g.id !== req.params.group_id;
                     });
 
+                    const domainMembers = domainData.members.map(m=> {
+                        m.memberOf = m.memberOf.filter(grp => grp !== groupToDelete.id);
+                        return m;
+                    })
+
                     const doc = await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
-                        groups: domainGroups
+                        groups: domainGroups,
+                        members: domainMembers
                     });
         
                     res.sendStatus(200);
@@ -411,7 +412,7 @@ export class DomainRest extends DynRestBase {
                 const adminGroupId = domainData.groups.find(g => g.name === 'Administrators');
                 const containsAdminGroup = req.body.memberOf.indexOf(adminGroupId) > -1;
 
-                if (memberToUpdate.uid === req.body.rawRecord.owner && req.body.memberOf && containsAdminGroup) {
+                if (memberToUpdate.uid === req.body.rawRecord.owner && req.body.memberOf && !containsAdminGroup) {
                     res.status(403).send('Cannot remove this member from Administrators group');
                 } else {
                     const domainMembers = domainData.members.map(m => {
