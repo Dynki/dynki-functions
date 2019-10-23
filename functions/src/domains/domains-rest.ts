@@ -70,25 +70,18 @@ export class DomainRest extends DynRestBase {
 
     async get(req: Request, res: Response) {
         try {
-            console.log(req.headers);
-            if (_.has(req, 'headers.uid')) {
-                const domainCollection = await admin.firestore()
-                    .collection('user-domains').where('users', 'array-contains', req.headers.uid).get();
+            const domainCollection = await admin.firestore()
+                .collection('user-domains').where('users', 'array-contains', req.body.hiddenUid).get();
 
-                if (domainCollection && domainCollection.docs.length > 0) {
-                    console.log('Domain::Send::', { id: domainCollection.docs[0].id });
+            if (domainCollection && domainCollection.docs.length > 0) {
+                const domains = domainCollection.docs.map(d => {
+                    return { id: d.id, display_name: d.data().display_name  }
+                });
 
-                    const domains = domainCollection.docs.map(d => {
-                        return { id: d.id, display_name: d.data().display_name  }
-                    });
-
-                    res.json(domains);
-                } else {
-                    res.status(404).send();
-                } 
+                res.json(domains);
             } else {
                 res.status(404).send();
-            }
+            } 
         } catch (error) {
             console.log(error);
             res.status(500).send({ error });
@@ -97,47 +90,31 @@ export class DomainRest extends DynRestBase {
 
     async getId(req: Request, res: Response, next, id) {
         try {
-            if (_.has(req, 'headers.authorization')) {
-                const token = req.headers.authorization;
+            const domainCollection = await admin.firestore()
+                .collection('user-domains')
+                .where(admin.firestore.FieldPath.documentId(), '==', id)
+                .where('users', 'array-contains', req.body.hiddenUid)
+                .get();
 
-                // Verify the ID token first.
-                admin.auth().verifyIdToken(token).then(async (decodedToken) => {
-                    const uid = decodedToken.uid;
+            if (domainCollection && domainCollection.docs.length > 0) {
+                const retrievedData = domainCollection.docs[0].data();
 
-                    const domainCollection = await admin.firestore()
-                        .collection('user-domains')
-                        .where(admin.firestore.FieldPath.documentId(), '==', id)
-                        .where('users', 'array-contains', uid)
-                        .get();
-    
-                    if (domainCollection && domainCollection.docs.length > 0) {
-                        console.log('Domain::Send::', { id: domainCollection.docs[0].id });
-                        
+                const mappedDomain = {
+                    id: domainCollection.docs[0].id,
+                    display_name: retrievedData.display_name,
+                    status: 'Enabled',
+                    groups: retrievedData.groups ? retrievedData.groups : [],
+                    members: retrievedData.members ? retrievedData.members : []
+                }
 
-                        const retrievedData = domainCollection.docs[0].data();
-
-                        const mappedDomain = {
-                            id: domainCollection.docs[0].id,
-                            display_name: retrievedData.display_name,
-                            status: 'Enabled',
-                            groups: retrievedData.groups ? retrievedData.groups : [],
-                            members: retrievedData.members ? retrievedData.members : []
-                        }
-
-                        req.body.record = mappedDomain;
-                        req.body.recordId = domainCollection.docs[0].id;
-                        req.body.rawRecord = domainCollection.docs[0].data();
-                        next();
-                        
-                    } else {
-                        res.status(404).send();
-                    } 
-                }).catch(error => {
-                    res.status(500).send('Error validating custom claims');
-                });
+                req.body.record = mappedDomain;
+                req.body.recordId = domainCollection.docs[0].id;
+                req.body.rawRecord = domainCollection.docs[0].data();
+                next();
+                
             } else {
                 res.status(404).send();
-            }
+            } 
         } catch (error) {
             console.log(error);
             res.status(500).send({ error });
@@ -176,7 +153,7 @@ export class DomainRest extends DynRestBase {
 
             const docRef = await admin.firestore().collection('user-domains').add(domainRecord);
             const doc = await admin.firestore().collection('user-domains').doc(docRef.id).get();
-            const domDoc = await admin.firestore().collection('domains').doc(docRef.id).set({display_name: req.body.name});
+            await admin.firestore().collection('domains').doc(docRef.id).set({display_name: req.body.name});
             admin.firestore().collection('domains').doc(docRef.id).collection('users').doc(req.body.hiddenUid).set({
                 email: req.body.email,
                 displayName: req.body.displayName,
@@ -388,7 +365,7 @@ export class DomainRest extends DynRestBase {
     
                 const mergedMembers = [...domainMembers, newMember];
     
-                const doc = await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
+                await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
                     members: mergedMembers
                 });
     
