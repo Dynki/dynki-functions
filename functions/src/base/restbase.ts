@@ -56,14 +56,14 @@ export class DynRestBase implements RestBase {
 
     registerRoutes(app: Express) {
         app.route('/')
-        .get(this.get)
-        .post(this.post);
+        .get(this.get.bind(this))
+        .post(this.post.bind(this));
 
         app.route('/:id')
-        .get(this.returnId)
-        .put(this.put)
-        .delete(this.delete);
+        .get(this.returnId.bind(this))
+        .put(this.put.bind(this))
+        .delete(this.delete.bind(this));
 
-        app.param('id', this.getId);
+        app.param('id', this.getId.bind(this));
     }
 }

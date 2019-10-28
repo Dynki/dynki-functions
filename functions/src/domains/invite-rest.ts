@@ -26,7 +26,7 @@ export class InviteRest extends DynRestBase {
 
             if (userAllowed) {
                 const inviteeEmail = req.body.invitee;
-                const invitorEmail = req.body.invitor;
+                const invitorEmail = req.body.inviter;
                 const domainName = req.body.domainName;
         
                 const invite: memberInvite = {
