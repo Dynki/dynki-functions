@@ -14,6 +14,8 @@
     "node": "8"
   },
   "dependencies": {
+    "@sendgrid/helpers": "^6.4.0",
+    "@sendgrid/mail": "^6.4.0",
     "cors": "^2.8.4",
     "express": "^4.16.4",
     "firebase-admin": "^8.2.0",
