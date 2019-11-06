@@ -22,6 +22,48 @@ interface memberInvite {
 
 export class InviteRest extends DynRestBase {
 
+    async getId(req: Request, res: Response, next, id) {
+        try {
+            const inviteCollection = await firestore()
+                .collection('member-invites')
+                .where(firestore.FieldPath.documentId(), '==', id)
+                .where('status', '==', 'pending')
+                .get();
+
+            if (inviteCollection && inviteCollection.docs.length > 0) {
+                const retrievedData = inviteCollection.docs[0].data();
+
+                const mappedInvite = {
+                    name: retrievedData.name,
+                    status: 'Enabled',
+                    groups: retrievedData.groups ? retrievedData.groups : [],
+                    members: retrievedData.members ? retrievedData.members : []
+                }
+
+                req.body.record = mappedInvite;
+                req.body.recordId = inviteCollection.docs[0].id;
+                req.body.rawRecord = inviteCollection.docs[0].data();
+                next();
+                
+            } else {
+                res.status(404).send();
+            } 
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
+
+    async returnId(req: Request, res: Response) {
+        try {
+            res.json(req.body.record);
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
+
+
     async post(req: Request, res: Response) {
         try {
             const userAllowed = await this.validateUserIsDomainAdmin(req, req.body.domain);
@@ -63,7 +105,7 @@ export class InviteRest extends DynRestBase {
                 const inviteId = newGuid();
 
                 const invite: memberInvite = {
-                    name: newGuid(),
+                    name: teamName,
                     invitee,
                     inviter,
                     uid: null,
