@@ -189,7 +189,7 @@ export class DomainRest extends DynRestBase {
                 selected: false
             });
 
-            await admin.auth().setCustomUserClaims(req.body.hiddenUid, {domainId: docRef.id});
+            await admin.auth().setCustomUserClaims(req.body.hiddenUid, { domainId: docRef.id, domainIds: [docRef.id] });
 
             res.json({ id: doc.data().id });
         } catch (error) {

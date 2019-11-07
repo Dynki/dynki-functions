@@ -26,7 +26,13 @@ export async function authCheck(req: Request, res: Response, next: any) {
             delete req.body.hiddenUid
         }
 
+        if (req.body.user) {
+            delete req.body.user
+        }
+
         req.body.hiddenUid = decodedToken.uid;
+        req.body.user = await admin.auth().getUser(decodedToken.uid);
+
         return next();        
     } catch (error) {
         console.log(error);

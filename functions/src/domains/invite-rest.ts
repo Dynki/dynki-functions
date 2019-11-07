@@ -1,5 +1,5 @@
-import { Request, Response } from 'express';
-import { firestore } from 'firebase-admin'; 
+import { Express, Request, Response, Router } from 'express';
+import { firestore, auth } from 'firebase-admin'; 
 import { config } from 'firebase-functions';
 import * as _ from 'lodash';
 import newGuid from '../utils/guid';
@@ -8,6 +8,7 @@ import { MailData } from '@sendgrid/helpers/classes/mail';
 
 import { DynRestBase } from '../base/restbase';
 import { request } from 'http';
+import { UserRecord } from 'firebase-functions/lib/providers/auth';
 
 interface memberInvite {
     name: string;
@@ -22,47 +23,68 @@ interface memberInvite {
 
 export class InviteRest extends DynRestBase {
 
-    async getId(req: Request, res: Response, next, id) {
+    constructor(public domainApp: Express) {
+        super(domainApp);
+
+        /**
+         * accept
+         */
+        this.addAcceptRouter();
+
+    }
+
+    addAcceptRouter() {
+        const acceptRouter = Router({ mergeParams: true });
+
+        // Create a group on the domain
+        acceptRouter.route('/').post(this.acceptInvite.bind(this));
+
+        this.domainApp.use('/:id/accept', acceptRouter);
+    }
+
+    async acceptInvite(req: Request, res: Response) {
         try {
-            const inviteCollection = await firestore()
+
+            // Get the invite record.
+            const inviteRecord = await firestore()
                 .collection('member-invites')
-                .where(firestore.FieldPath.documentId(), '==', id)
-                .where('status', '==', 'pending')
+                .doc(req.body.id)
                 .get();
 
-            if (inviteCollection && inviteCollection.docs.length > 0) {
-                const retrievedData = inviteCollection.docs[0].data();
+            const inviteData = inviteRecord.data();
 
-                const mappedInvite = {
-                    name: retrievedData.name,
-                    status: 'Enabled',
-                    groups: retrievedData.groups ? retrievedData.groups : [],
-                    members: retrievedData.members ? retrievedData.members : []
-                }
+            const user: UserRecord = req.body.user;
 
-                req.body.record = mappedInvite;
-                req.body.recordId = inviteCollection.docs[0].id;
-                req.body.rawRecord = inviteCollection.docs[0].data();
-                next();
-                
+            // Check that the invite is in a pending state.
+            if (inviteData.status === 'pending') {
+
+                // Add the user UID to the invite record.
+                // Update the status to accepted.
+                await firestore().collection('member-invites').doc(req.body.id).update({ 
+                    uid: user.uid,
+                    status: 'accepted'
+                });
+
+                const claims = <any> user.customClaims;
+                const currentDomainIds = claims.domainIds;
+
+                const domainIds = [...currentDomainIds, inviteData.domain];
+                await auth().setCustomUserClaims(user.uid, { domainIds: [domainIds] });
+
+                res.sendStatus(200);
             } else {
-                res.status(404).send();
-            } 
+                res.status(401).send();
+            }
         } catch (error) {
             console.log(error);
-            res.status(500).send({ error });
+            res.status(500).send({ error: req.body.log });
         }
     }
 
-    async returnId(req: Request, res: Response) {
-        try {
-            res.json(req.body.record);
-        } catch (error) {
-            console.log(error);
-            res.status(500).send({ error });
-        }
+    async getId(req: Request, res: Response, next, id) {
+        req.body.id = id;
+        next();
     }
-
 
     async post(req: Request, res: Response) {
         try {
