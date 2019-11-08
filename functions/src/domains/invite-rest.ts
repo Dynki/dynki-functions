@@ -66,7 +66,7 @@ export class InviteRest extends DynRestBase {
                 });
 
                 const claims = <any> user.customClaims;
-                const currentDomainIds = claims.domainIds;
+                const currentDomainIds = claims.domainIds ? claims.domainIds : [];
 
                 const domainIds = [...currentDomainIds, inviteData.domain];
                 await auth().setCustomUserClaims(user.uid, { domainIds: [domainIds] });
