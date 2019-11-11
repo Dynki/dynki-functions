@@ -65,10 +65,30 @@ export class InviteRest extends DynRestBase {
                     status: 'accepted'
                 });
 
+                const domainRecord = await firestore()
+                    .collection('user-domains')
+                    .doc(inviteData.domain)
+                    .get();
+                
+                const userGroupId = domainRecord.data().groups.find(g => g.name === 'Users');
+
+                await firestore()
+                    .collection('user-domains')
+                    .doc(inviteData.domain)
+                    .update({ 
+                        users: firestore.FieldValue.arrayUnion(user.uid),
+                        members: firestore.FieldValue.arrayUnion({
+                            email: user.email,
+                            id: newGuid(),
+                            memberOf: [userGroupId],
+                            status: 'Active',
+                            uid: user.uid
+                        })
+                     });
+
                 const claims = <any> user.customClaims;
                 const primaryDomain = claims.domainId;
                 const currentDomainIds = claims.domainIds ? claims.domainIds : [];
-
 
                 const domainIds = [...currentDomainIds, inviteData.domain];
                 await auth().setCustomUserClaims(user.uid, { domainId: primaryDomain, domainIds: [domainIds] });
