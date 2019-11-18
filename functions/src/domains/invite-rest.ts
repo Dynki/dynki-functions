@@ -80,7 +80,7 @@ export class InviteRest extends DynRestBase {
                         members: firestore.FieldValue.arrayUnion({
                             email: user.email,
                             id: newGuid(),
-                            memberOf: [userGroupId],
+                            memberOf: [userGroupId.id],
                             status: 'Active',
                             uid: user.uid
                         })
