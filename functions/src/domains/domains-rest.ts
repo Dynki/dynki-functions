@@ -361,13 +361,19 @@ export class DomainRest extends DynRestBase {
                 const domainData = req.body.rawRecord;
                 const domainMembers = domainData.members ? domainData.members : [];
                 const usersGroupId = domainData.groups.find(g => g.name === 'Users');
-                const newMember = { id: newGuid(), uid: undefined, email: req.body.email, status: 'Pending', memberOf: [usersGroupId] }
+                const newMember = { id: newGuid(), uid: undefined, email: req.body.email, status: 'Pending', memberOf: [usersGroupId.id] }
     
                 const mergedMembers = [...domainMembers, newMember];
     
                 await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
                     members: mergedMembers
                 });
+
+                const user = req.body.user;
+                const claims = <any> user.customClaims;
+                const roles = claims.roles ? [usersGroupId.id, ...claims.roles] : [usersGroupId.id];
+
+                await admin.auth().setCustomUserClaims(user.uid, { roles });
     
                 res.json(newMember);
             } else {
@@ -387,7 +393,7 @@ export class DomainRest extends DynRestBase {
                 const domainData = req.body.rawRecord;
                 const memberToUpdate = domainData.members.find(m => m.uid === req.params.member_id);
                 const adminGroupId = domainData.groups.find(g => g.name === 'Administrators');
-                const containsAdminGroup = req.body.memberOf.indexOf(adminGroupId) > -1;
+                const containsAdminGroup = req.body.memberOf.indexOf(adminGroupId.id) > -1;
 
                 if (memberToUpdate.uid === req.body.rawRecord.owner && req.body.memberOf && !containsAdminGroup) {
                     res.status(403).send('Cannot remove this member from Administrators group');
@@ -410,6 +416,12 @@ export class DomainRest extends DynRestBase {
                     await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
                         members: domainMembers
                     });
+
+                    const user = req.body.user;
+                    const claims = <any> user.customClaims;
+                    const roles = claims.roles ? [req.body.memberOf, ...claims.roles] : [req.body.memberOf];
+    
+                    await admin.auth().setCustomUserClaims(user.uid, { roles });
     
                     res.sendStatus(200);
                 }
@@ -432,7 +444,7 @@ export class DomainRest extends DynRestBase {
                 const groupToDelete = domainData.groups.find(g => g.id === req.body.group.id);
     
                 if (groupToDelete.group_name === 'Administrators' || groupToDelete.group_name === 'Users') {
-                    res.status(403).send({ error: 'Cannot delete this group' });
+                    res.status(403).send({ error: 'Cannot remove member from this group' });
                 } else {
     
                     const domainGroups = domainData.groups.filter(g => {
@@ -442,6 +454,13 @@ export class DomainRest extends DynRestBase {
                     const doc = await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
                         groups: domainGroups
                     });
+
+                    const user = req.body.user;
+                    const claims = <any> user.customClaims;
+                    const roles = claims.roles ? claims.roles.filter(r => r !== req.body.group.id) : [];
+    
+                    await admin.auth().setCustomUserClaims(user.uid, { roles });
+    
         
                     res.sendStatus(200);
                 }
