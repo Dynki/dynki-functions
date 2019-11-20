@@ -451,7 +451,7 @@ export class DomainRest extends DynRestBase {
                         return g.id !== req.body.group.id;
                     })
         
-                    const doc = await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
+                    await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
                         groups: domainGroups
                     });
 
