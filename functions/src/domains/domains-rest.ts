@@ -237,7 +237,7 @@ export class DomainRest extends DynRestBase {
                 const newGroup = { id: newGuid(), name: req.body.group_name, members: [req.headers.uid] }
                 const mergedGroups = [...domainGroups, newGroup];
 
-                const doc = await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
+                await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
                     groups: mergedGroups
                 });
 
@@ -269,7 +269,7 @@ export class DomainRest extends DynRestBase {
                         return g;
                     });
 
-                    const doc = await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
+                    await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
                         groups: domainGroups
                     });
 
@@ -304,7 +304,7 @@ export class DomainRest extends DynRestBase {
                         return m;
                     })
 
-                        const doc = await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
+                    await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
                         groups: domainGroups,
                         members: domainMembers
                     });
@@ -368,7 +368,7 @@ export class DomainRest extends DynRestBase {
                 });
 
                 const user = req.body.user;
-                const claims = <any> user.customClaims;
+                const claims = user.customClaims;
                 const roles = claims.roles ? [usersGroupId.id, ...claims.roles] : [usersGroupId.id];
 
                 await admin.auth().setCustomUserClaims(user.uid, { roles });
@@ -416,7 +416,7 @@ export class DomainRest extends DynRestBase {
                     });
 
                     const user = req.body.user;
-                    const claims = <any> user.customClaims;
+                    const claims = user.customClaims;
                     const roles = claims.roles ? [req.body.memberOf, ...claims.roles] : [req.body.memberOf];
     
                     await admin.auth().setCustomUserClaims(user.uid, { roles });
@@ -454,7 +454,7 @@ export class DomainRest extends DynRestBase {
                     });
 
                     const user = req.body.user;
-                    const claims = <any> user.customClaims;
+                    const claims = user.customClaims;
                     const roles = claims.roles ? claims.roles.filter(r => r !== req.body.group.id) : [];
     
                     await admin.auth().setCustomUserClaims(user.uid, { roles });

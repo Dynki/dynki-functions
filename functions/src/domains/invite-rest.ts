@@ -7,7 +7,6 @@ import * as sgMail from '@sendgrid/mail';
 import { MailData } from '@sendgrid/helpers/classes/mail';
 
 import { DynRestBase } from '../base/restbase';
-import { request } from 'http';
 import { UserRecord } from 'firebase-functions/lib/providers/auth';
 
 interface memberInvite {

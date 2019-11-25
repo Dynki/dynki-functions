@@ -1,4 +1,4 @@
-import { Express, Request, Response } from 'express';
+import { Express, Request } from 'express';
 import * as admin from 'firebase-admin'; 
 
 import { DynRestBase } from '../base/restbase';

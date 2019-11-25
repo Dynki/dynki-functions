@@ -17,4 +17,3 @@ export const checkDomain = functions.https.onRequest((req, res) => {
 });
 
 export const checkDomainRest = new CheckDomainRest(app);
-
