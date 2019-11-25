@@ -133,9 +133,6 @@ export class DomainRest extends DynRestBase {
     async post(req: Request, res: Response) {
         try {
 
-            const adminGroupId = newGuid();
-            const usersGroupId = newGuid();
-
             const domainRecord = {
                 name: newGuid(),
                 display_name: req.body.name,
@@ -143,11 +140,12 @@ export class DomainRest extends DynRestBase {
                 admins: [req.body.hiddenUid],
                 users: [req.body.hiddenUid],
                 groups: [
-                    { id: adminGroupId, name: 'Administrators', members: [req.body.hiddenUid] },
-                    { id: usersGroupId, name: 'Users', members: [req.body.hiddenUid] }
+                    { id: 'ADMINISTRATORS', name: 'Administrators', members: [req.body.hiddenUid] },
+                    { id: 'BOARD_USERS', name: 'Board Users', members: [req.body.hiddenUid] },
+                    { id: 'BOARD_CREATORS', name: 'Board Creators', members: [req.body.hiddenUid] }
                 ],
                 members: [
-                    { id: newGuid(), uid: req.body.hiddenUid, email: req.body.email, status: 'Active', memberOf: [adminGroupId, usersGroupId] }
+                    { id: newGuid(), uid: req.body.hiddenUid, email: req.body.email, status: 'Active', memberOf: ['ADMINISTRATORS', 'BOARD_USERS', 'BOARD_CREATORS'] }
                 ]
             }
 
