@@ -59,8 +59,7 @@ export class DomainRest extends DynRestBase {
 
     isAdmin = (req: Request) : boolean => {
         const memberRecord = req.body.rawRecord.members.find(m => m.uid === req.body.hiddenUid);
-        const adminGroupId = req.body.rawRecord.groups.find(g => g.name === 'Administrators');
-        const isAnAdmin = memberRecord && memberRecord.memberOf.indexOf(adminGroupId.id) > -1;
+        const isAnAdmin = memberRecord && memberRecord.memberOf.indexOf('ADMINISTRATORS') > -1;
         return isAnAdmin;
     }
 
@@ -257,9 +256,9 @@ export class DomainRest extends DynRestBase {
 
             if (this.isAdmin(req)) {
                 const domainData = req.body.rawRecord;
-                const groupToUpdate = domainData.groups.find(g => g.id === req.params.group_id);
+                const groupsNotAllowed = ['ADMINISTRATORS', 'BOARD_CREATORS', 'BOARD_USERS'];
 
-                if (groupToUpdate.name === 'Administrators' || groupToUpdate.name === 'Users') {
+                if (groupsNotAllowed.indexOf(req.params.group_id) > -1) {
                     res.status(403).send({ error: 'Cannot update this group' });
                 } else {
                     const domainGroups = domainData.groups.map(g => {
@@ -290,9 +289,9 @@ export class DomainRest extends DynRestBase {
         try {
             if (this.isAdmin(req)) {
                 const domainData = req.body.rawRecord;
-                const groupToDelete = domainData.groups.find(g => g.id === req.params.group_id);
+                const groupsNotAllowed = ['ADMINISTRATORS', 'BOARD_CREATORS', 'BOARD_USERS'];
 
-                if (groupToDelete.name === 'Administrators' || groupToDelete.name === 'Users') {
+                if (groupsNotAllowed.indexOf(req.params.group_id) > -1) {
                     res.status(403).send({ error: 'Cannot delete this group' });
                 } else {
                     const domainGroups = domainData.groups.filter(g => {
@@ -300,7 +299,7 @@ export class DomainRest extends DynRestBase {
                     });
 
                     const domainMembers = domainData.members.map(m=> {
-                        m.memberOf = m.memberOf.filter(grp => grp !== groupToDelete.id);
+                        m.memberOf = m.memberOf.filter(grp => grp !== req.params.group_id);
                         return m;
                     })
 
@@ -369,7 +368,7 @@ export class DomainRest extends DynRestBase {
 
                 const user = req.body.user;
                 const claims = user.customClaims;
-                const roles = claims.roles ? [usersGroupId.id, ...claims.roles] : [usersGroupId.id];
+                const roles = claims.roles ? ['BOARD_USERS', ...claims.roles] : ['BOARD_USERS'];
 
                 await admin.auth().setCustomUserClaims(user.uid, { roles });
     
@@ -390,8 +389,7 @@ export class DomainRest extends DynRestBase {
 
                 const domainData = req.body.rawRecord;
                 const memberToUpdate = domainData.members.find(m => m.uid === req.params.member_id);
-                const adminGroupId = domainData.groups.find(g => g.name === 'Administrators');
-                const containsAdminGroup = req.body.memberOf.indexOf(adminGroupId.id) > -1;
+                const containsAdminGroup = req.body.memberOf.indexOf('ADMINISTRATORS') > -1;
 
                 if (memberToUpdate.uid === req.body.rawRecord.owner && req.body.memberOf && !containsAdminGroup) {
                     res.status(403).send('Cannot remove this member from Administrators group');
@@ -439,9 +437,9 @@ export class DomainRest extends DynRestBase {
             if (this.isAdmin(req)) {
 
                 const domainData = req.body.rawRecord;
-                const groupToDelete = domainData.groups.find(g => g.id === req.body.group.id);
-    
-                if (groupToDelete.group_name === 'Administrators' || groupToDelete.group_name === 'Users') {
+                const groupsNotAllowed = ['ADMINISTRATORS', 'BOARD_CREATORS', 'BOARD_USERS'];
+
+                if (groupsNotAllowed.indexOf(req.params.group_id) > -1) {
                     res.status(403).send({ error: 'Cannot remove member from this group' });
                 } else {
     

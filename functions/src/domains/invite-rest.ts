@@ -64,13 +64,11 @@ export class InviteRest extends DynRestBase {
                     status: 'accepted'
                 });
 
-                const domainRecord = await firestore()
+                await firestore()
                     .collection('user-domains')
                     .doc(inviteData.domain)
                     .get();
                 
-                const userGroupId = domainRecord.data().groups.find(g => g.name === 'Users');
-
                 await firestore()
                     .collection('user-domains')
                     .doc(inviteData.domain)
@@ -79,7 +77,7 @@ export class InviteRest extends DynRestBase {
                         members: firestore.FieldValue.arrayUnion({
                             email: user.email,
                             id: newGuid(),
-                            memberOf: [userGroupId.id],
+                            memberOf: ['BOARD_USERS'],
                             status: 'Active',
                             uid: user.uid
                         })
@@ -88,7 +86,7 @@ export class InviteRest extends DynRestBase {
                 const claims = <any> user.customClaims;
                 const primaryDomain = claims.domainId;
                 const currentDomainIds = claims.domainIds ? claims.domainIds : [];
-                const roles = [userGroupId.id]
+                const roles = ['BOARD_USERS']
 
                 const domainIds = [...currentDomainIds, inviteData.domain];
                 await auth().setCustomUserClaims(user.uid, { domainId: primaryDomain, domainIds, roles });
@@ -176,8 +174,7 @@ export class InviteRest extends DynRestBase {
             const retrievedData = domainCollection.docs[0].data();
 
             const memberRecord = retrievedData.members.find(m => m.uid === req.body.hiddenUid);
-            const adminGroupId = retrievedData.groups.find(g => g.name === 'Administrators');
-            const isAnAdmin = memberRecord && memberRecord.memberOf.indexOf(adminGroupId.id) > -1;
+            const isAnAdmin = memberRecord && memberRecord.memberOf.indexOf('ADMINISTRATORS') > -1;
 
             return isAnAdmin;
         } else {
