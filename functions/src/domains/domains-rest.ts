@@ -186,7 +186,14 @@ export class DomainRest extends DynRestBase {
                 selected: false
             });
 
-            await admin.auth().setCustomUserClaims(req.body.hiddenUid, { domainId: docRef.id, domainIds: [docRef.id] });
+            const domainIds = {
+                [docRef.id]: { roles: ['ADMINISTRATORS', 'BOARD_USERS', 'BOARD_CREATORS'] }
+            }
+
+            await admin.auth().setCustomUserClaims(
+                req.body.hiddenUid, 
+                { domainId: docRef.id, domainIds }
+            );
 
             res.json({ id: doc.data().id });
         } catch (error) {
@@ -456,8 +463,7 @@ export class DomainRest extends DynRestBase {
                     const roles = claims.roles ? claims.roles.filter(r => r !== req.body.group.id) : [];
     
                     await admin.auth().setCustomUserClaims(user.uid, { roles });
-    
-        
+                    
                     res.sendStatus(200);
                 }
 
