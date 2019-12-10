@@ -77,7 +77,7 @@ export class InviteRest extends DynRestBase {
                         members: firestore.FieldValue.arrayUnion({
                             email: user.email,
                             id: newGuid(),
-                            memberOf: ['BOARD_USERS'],
+                            memberOf: ['BOARD_USERS', 'BOARD_CREATORS'],
                             status: 'Active',
                             uid: user.uid
                         })
@@ -88,8 +88,8 @@ export class InviteRest extends DynRestBase {
                 const currentDomainIds = claims.domainIds ? claims.domainIds : [];
                 const roles = ['BOARD_USERS', 'BOARD_CREATORS']
 
-                const domainIds = {...currentDomainIds, [inviteData.domain] : roles };
-                await auth().setCustomUserClaims(user.uid, { domainId: primaryDomain, domainIds, roles });
+                const domainIds = {...currentDomainIds, ...{ [inviteData.domain] : { roles } } };
+                await auth().setCustomUserClaims(user.uid, { domainId: primaryDomain, domainIds });
 
                 res.sendStatus(200);
             } else {
