@@ -1,6 +1,8 @@
 import { Request, Response } from "firebase-functions";
 import * as admin from 'firebase-admin'; 
 import * as _ from 'lodash';
+import { UserRecord } from "firebase-functions/lib/providers/auth";
+import { DynkiRequest } from "../base/dynki-request";
 
 export async function authCheck(req: Request, res: Response, next: any) {
 
@@ -22,16 +24,13 @@ export async function authCheck(req: Request, res: Response, next: any) {
     try {
         const decodedToken = await admin.auth().verifyIdToken(token);
 
-        if (req.body.hiddenUid) {
-            delete req.body.hiddenUid
+        if (req.body.dynki) {
+            delete req.body.dynki;
         }
 
-        if (req.body.user) {
-            delete req.body.user
-        }
-
-        req.body.hiddenUid = decodedToken.uid;
-        req.body.user = await admin.auth().getUser(decodedToken.uid);
+        const user: UserRecord = await admin.auth().getUser(decodedToken.uid);
+        
+        req.body.dynki = <DynkiRequest>{ data: {}, user };
 
         return next();        
     } catch (error) {
