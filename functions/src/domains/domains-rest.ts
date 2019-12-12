@@ -1,4 +1,4 @@
-import { Express, Request, Response, Router } from 'express';
+import { Express, Request, Response } from 'express';
 import * as admin from 'firebase-admin'; 
 import * as _ from 'lodash';
 import newGuid from '../utils/guid';
@@ -8,6 +8,7 @@ import { DomainRequest } from '../base/dynki-request';
 
 import roles from './roles-enum';
 import { DomainGroups } from './domain-groups';
+import { DomainMembers } from './domain-members';
 
 export class DomainRest extends DynRestBase {
     constructor(public domainApp: Express) {
@@ -17,10 +18,19 @@ export class DomainRest extends DynRestBase {
          * Groups
          */
         this.setGroupsRouter();
+
+        /**
+         * Members
+         */
+        this.setMembersRouter();
     }
 
     setGroupsRouter() {
         new DomainGroups(this.domainApp);
+    }
+
+    setMembersRouter() {
+        new DomainMembers(this.domainApp);
     }
 
     /**
@@ -109,9 +119,9 @@ export class DomainRest extends DynRestBase {
                 admins: [user.uid],
                 users: [user.uid],
                 groups: [
-                    { id: roles.Administrators, name: 'Administrators', members: [user.uid] },
-                    { id: roles.BoardUsers, name: 'Board Users', members: [user.uid] },
-                    { id: roles.BoardCreators, name: 'Board Creators', members: [user.uid] }
+                    { id: roles.Administrators, name: roles.Administrators, members: [user.uid] },
+                    { id: roles.BoardUsers, name: roles.BoardUsers, members: [user.uid] },
+                    { id: roles.BoardCreators, name: roles.BoardCreators, members: [user.uid] }
                 ],
                 members: [
                     { 

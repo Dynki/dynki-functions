@@ -1,4 +1,4 @@
-import { Express, Request, Response, Router } from 'express';
+import { Express, Response, Router } from 'express';
 import * as admin from 'firebase-admin'; 
 
 import newGuid from '../utils/guid';
@@ -41,14 +41,14 @@ export class DomainGroups {
         // currently dealing with. The domain ID should already have been populated (via Express routing)
         // and should be on the req.body.dynki.data.domainId property.
 
-        const { claims } = <any>req.body.dynki.user.customClaims;
-        const { domainId } = <any>req.body.dynki.data.domainId;
+        const { customClaims } = <any>req.body.dynki.user;
+        const { domainId } = req.body.dynki.data;
 
-        if (!claims.domainIds || !claims.domainIds[domainId] || !claims.domainIds[domainId].roles) {
+        if (!customClaims.domainIds || !customClaims.domainIds[domainId] || !customClaims.domainIds[domainId].roles) {
             return false;
         }
 
-        return claims.domainIds[domainId].roles.includes(roles.Administrators);
+        return customClaims.domainIds[domainId].roles.includes(roles.Administrators);
     }
 
     private isGroupAllowed(groupName: string) :Boolean {
@@ -133,8 +133,10 @@ export class DomainGroups {
                 const { domainId, domainRawRecord } = req.body.dynki.data;
                 const { group_name } = req.body;
 
+                const groupToUpdate = domainRawRecord.groups.find(g => g.id === req.params.group_id);
+
                 // Not allowed to update group with name "ADMINISTRATORS", "BOARD_CREATORS", "BOARD_USERS"
-                if (!this.isGroupAllowed(group_name)) {
+                if (!groupToUpdate || !this.isGroupAllowed(groupToUpdate.name) || !this.isGroupAllowed(group_name)) {
                     res.status(403).send({ error: 'Cannot update this group' });
                 } else {
                     const domainGroups = domainRawRecord.groups.map(g => {
@@ -167,7 +169,7 @@ export class DomainGroups {
                 const { domainId, domainRawRecord, group } = req.body.dynki.data;
 
                 // Not allowed to delete group with name "ADMINISTRATORS", "BOARD_CREATORS", "BOARD_USERS"
-                if (!this.isGroupAllowed(group.name)) {
+                if (!group || !this.isGroupAllowed(group.name)) {
                     res.status(403).send({ error: 'Cannot delete this group' });
                 } else {
                     const domainGroups = domainRawRecord.groups.filter(g => {

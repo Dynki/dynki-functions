@@ -6,11 +6,14 @@ export interface DomainRequest extends Request {
 }
 
 interface DomainRequestBody {
+    log: any;
+    status: any;
+
     displayName: string;
     email: string;
     name: string;
     group_name: string;
-    log: any;
+    memberOf: Array<string>;
     dynki: {
         user: UserRecord;
         data: DomainRequestData;
@@ -23,4 +26,6 @@ interface DomainRequestData {
     domainRawRecord: any;
     group: any;
     groupId: string;
+    member: any;
+    memberId: string;
 }

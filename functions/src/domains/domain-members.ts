@@ -1,186 +1,138 @@
-import { Express, Request, Response, Router } from 'express';
+import { Express, Response, Router } from 'express';
 import * as admin from 'firebase-admin'; 
 
-import newGuid from '../utils/guid';
-// import { DynkiRequest } from '../base/dynki-request';
+import { DomainRequest } from '../base/dynki-request';
 import roles from './roles-enum';
 
 export class DomainMembers {
     router: Router;
 
-    // constructor(domainApp: Express) {
-    //     this.router = Router({ mergeParams: true });
+    constructor(domainApp: Express) {
+        this.router = Router({ mergeParams: true });
 
-    //     // Create a member on the domain
-    //     this.router.route('/').post(this.postMember.bind(this))
+        // Get all members on the domain
+        this.router.route('/').get(this.getMembers.bind(this));
 
-    //     // Get all members on the domain
-    //     this.router.route('/').get(this.getMembers.bind(this));
+        // Individual member mapping.
+        this.router.route('/:member_id').get(this.returnMember.bind(this));
+        this.router.route('/:member_id').put(this.updateMember.bind(this));
 
-    //     // Individual member mapping.
-    //     this.router.route('/:member_id').get(this.returnMember.bind(this));
-    //     this.router.route('/:member_id').put(this.updateMember.bind(this));
-    //     this.router.route('/:member_id').delete(this.deleteMember.bind(this));
+        domainApp.param('member_id', this.getMemberId.bind(this));
+        domainApp.use('/:id/members', this.router.bind(this));
+    }
 
-    //     domainApp.param('member_id', this.getMemberId.bind(this));
-    //     domainApp.use('/:id/members', this.router.bind(this));
-    // }
+    private isAdmin = (req: DomainRequest) : boolean => {
 
-    //     /**
-    //  * Domain Member methods
-    //  */
-    
-    // async getMemberId(req: Request, res: Response, next, id) {
-    //     try {
-    //         req.body.dynki.data.member = req.body.dynki.data.domainRawRecord.members.find(g => g.id === id);
-    //         next();
-    //     } catch (error) {
-    //         console.log(error);
-    //         res.status(500).send({ error });
-    //     }
-    // }
+        // How to check if someone is an admin?
 
-    // async getMembers(req: Request, res: Response) {
-    //     try {
-    //         res.json(req.body.dynki.data.domainRawRecord.members);
-    //     } catch (error) {
-    //         console.log(error);
-    //         res.status(500).send({ error });
-    //     }
-    // }
-
-    // async returnMember(req: Request, res: Response) {
-    //     try {
-    //         res.json(req.body.dynki.data.member);
-    //     } catch (error) {
-    //         console.log(error);
-    //         res.status(500).send({ error });
-    //     }
-    // }
-
-    // async postMember(req: Request, res: Response) {
-    //     try {
-
-    //         if (this.isAdmin(req)) {
-    //             const { user } = <DynkiRequest>req.body.dynki;
-    //             const { domainId, domainRawRecord } = req.body.dynki.data.domainRawRecord;
-    //             const { email } = req.body;
-    //             const domainMembers = domainRawRecord.members ? domainRawRecord.members : [];
-    //             const usersGroupId = domainRawRecord.groups.find(g => g.name === 'Users');
-    //             const newMember = { 
-    //                 id: newGuid(),
-    //                 uid: undefined,
-    //                 email, 
-    //                 status: 'Pending', 
-    //                 memberOf: [usersGroupId.id] 
-    //             }
-    
-    //             const mergedMembers = [...domainMembers, newMember];
-    
-    //             await admin.firestore().collection('user-domains').doc(domainId).update({ 
-    //                 members: mergedMembers
-    //             });
-
-    //             const claims = user.customClaims;
-    //             const roles = claims.roles ? ['BOARD_USERS', ...claims.roles] : ['BOARD_USERS'];
-
-    //             await admin.auth().setCustomUserClaims(user.uid, { roles });
-    
-    //             res.json(newMember);
-    //         } else {
-    //             res.status(401).send('Unauthorised to perform this operation');
-    //         }
-
-    //     } catch (error) {
-    //         console.log(error);
-    //         res.status(500).send({ error: req.body.log });
-    //     }
-    // }
-
-    // async updateMember(req: Request, res: Response) {
-    //     try {
-    //         if (this.isAdmin(req)) {
-
-    //             const domainData = req.body.rawRecord;
-    //             const memberToUpdate = domainData.members.find(m => m.uid === req.params.member_id);
-    //             const containsAdminGroup = req.body.memberOf.indexOf(roles.Administrators) > -1;
-
-    //             if (memberToUpdate.uid === domainData.owner && req.body.memberOf && !containsAdminGroup) {
-    //                 res.status(403).send('Cannot remove this member from Administrators group');
-    //             } else {
-    //                 const domainMembers = domainData.members.map(m => {
-
-    //                     if (m.uid === req.params.member_id) {
-    //                         if (req.body.memberOf) {
-    //                             m.memberOf = req.body.memberOf;
-    //                         }
+        // First we need to obtain the user's custom claims. 
+        // This can be accessed from the req.body.dynki.user.customClaims object
         
-    //                         if (req.body.status) {
-    //                             m.status = req.body.status
-    //                         }
-    //                     }
+        // Within the custom claims is the domainIds object. Each key in the object is the id of a domain.
+        // The value part of each domain is an object containing roles.
+        // E.g. domainIds: { rtJT7LAZP4HLrBbNWo1T: { roles: ["ADMINISTRATORS", "BOARD_USERS", "BOARD_CREATORS"] } }
+
+        // We now just need to check if the user has the "ADMINISTRATORS" role for the domain ID we are
+        // currently dealing with. The domain ID should already have been populated (via Express routing)
+        // and should be on the req.body.dynki.data.domainId property.
+
+        const { customClaims } = <any>req.body.dynki.user;
+        const { domainId } = <any>req.body.dynki.data;
+
+        if (!customClaims.domainIds || !customClaims.domainIds[domainId] || !customClaims.domainIds[domainId].roles) {
+            return false;
+        }
+
+        return customClaims.domainIds[domainId].roles.includes(roles.Administrators);
+    }
+
+    /**
+     * Domain Member methods
+     */
     
-    //                     return m;
-    //                 });
-    
-    //                 await admin.firestore().collection('user-domains').doc(req.body.recordId).update({ 
-    //                     members: domainMembers
-    //                 });
+    async getMemberId(req: DomainRequest, res: Response, next, id) {
+        try {
+            req.body.dynki.data.member = req.body.dynki.data.domainRawRecord.members.find(g => g.id === id);
+            req.body.dynki.data.memberId = id;
+            next();
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
 
-    //                 const user = req.body.user;
-    //                 const claims = user.customClaims;
-    //                 const roles = claims.roles ? [req.body.memberOf, ...claims.roles] : [req.body.memberOf];
-    
-    //                 await admin.auth().setCustomUserClaims(user.uid, { roles });
-    
-    //                 res.sendStatus(200);
-    //             }
+    async getMembers(req: DomainRequest, res: Response) {
+        try {
+            res.json(req.body.dynki.data.domainRawRecord.members);
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
 
-    //         } else {
-    //             res.status(401).send('Unauthorised to perform this operation');
-    //         }
+    async returnMember(req: DomainRequest, res: Response) {
+        try {
+            res.json(req.body.dynki.data.member);
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
 
-    //     } catch (error) {
-    //         console.log(error);
-    //         res.status(500).send({ error: req.body.log });
-    //     }
-    // }
+    async updateMember(req: DomainRequest, res: Response) {
+        try {
+            if (this.isAdmin(req)) {
 
-    // async deleteMember(req: Request, res: Response) {
-    //     try {
-    //         if (this.isAdmin(req)) {
+                const domainData = req.body.dynki.data.domainRawRecord;
+                const memberToUpdate = domainData.members.find(m => m.uid === req.params.member_id);
+                const containsAdminGroup = req.body.memberOf.indexOf(roles.Administrators) > -1;
 
-    //             const domainData = req.body.dynki.data.domainRawRecord;
-    //             const groupsNotAllowed = ['ADMINISTRATORS', 'BOARD_CREATORS', 'BOARD_USERS'];
+                // Cannot remove the domain owner from the "ADMINSTRATORS" group.
+                if (memberToUpdate.uid === domainData.owner && req.body.memberOf && !containsAdminGroup) {
+                    res.status(403).send({ error: 'Cannot remove this member from Administrators group' });
+                } else {
+                    const domainMembers = domainData.members.map(m => {
 
-    //             if (groupsNotAllowed.indexOf(req.params.group_id) > -1) {
-    //                 res.status(403).send({ error: 'Cannot remove member from this group' });
-    //             } else {
-    
-    //                 const domainGroups = domainData.groups.filter(g => {
-    //                     return g.id !== req.body.group.id;
-    //                 })
+                        if (m.uid === req.params.member_id) {
+                            if (req.body.memberOf) {
+                                m.memberOf = req.body.memberOf;
+                            }
         
-    //                 await admin.firestore().collection('user-domains').doc(req.body.dynki.data.domainId).update({ 
-    //                     groups: domainGroups
-    //                 });
-
-    //                 const user = req.body.user;
-    //                 const claims = user.customClaims;
-    //                 const roles = claims.roles ? claims.roles.filter(r => r !== req.body.group.id) : [];
+                            if (req.body.status) {
+                                m.status = req.body.status
+                            }
+                        }
     
-    //                 await admin.auth().setCustomUserClaims(user.uid, { roles });
-                    
-    //                 res.sendStatus(200);
-    //             }
+                        return m;
+                    });
+    
+                    await admin.firestore().collection('user-domains').doc(req.body.dynki.data.domainId).update({ 
+                        members: domainMembers
+                    });
 
-    //         } else {
-    //             res.status(401).send('Unauthorised to perform this operation');
-    //         }
-    //     } catch (error) {
-    //         console.log(error);
-    //         res.status(500).send({ error: req.body.log });
-    //     }
-    // }
+                    const { customClaims } = <any>req.body.dynki.user;
+                    const { domainId } = req.body.dynki.data;
+                    const { user } = req.body.dynki;
 
+                    customClaims.domainIds[domainId].roles = req.body.memberOf;
+
+                    await admin.auth().setCustomUserClaims(user.uid, 
+                        { 
+                            domainId: customClaims.domainId,
+                            domainIds: customClaims.domainIds 
+                        }
+                    );
+    
+                    res.sendStatus(200);
+                }
+
+            } else {
+                res.status(401).send({ error: 'Unauthorised to perform this operation' });
+            }
+
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error: req.body.log });
+        }
+    }
 }

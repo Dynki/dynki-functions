@@ -1,13 +1,15 @@
 import { Express, Request, Response, Router } from 'express';
 import { firestore, auth } from 'firebase-admin'; 
 import { config } from 'firebase-functions';
+import { UserRecord } from 'firebase-functions/lib/providers/auth';
 import * as _ from 'lodash';
-import newGuid from '../utils/guid';
 import * as sgMail from '@sendgrid/mail';
 import { MailData } from '@sendgrid/helpers/classes/mail';
 
+import newGuid from '../utils/guid';
+import roles from './roles-enum';
 import { DynRestBase } from '../base/restbase';
-import { UserRecord } from 'firebase-functions/lib/providers/auth';
+import { DomainRequest } from '../base/dynki-request';
 
 interface memberInvite {
     name: string;
@@ -30,6 +32,30 @@ export class InviteRest extends DynRestBase {
          */
         this.addAcceptRouter();
 
+    }
+
+    private isAdmin = (req: DomainRequest, domainId: string) : boolean => {
+
+        // How to check if someone is an admin?
+
+        // First we need to obtain the user's custom claims. 
+        // This can be accessed from the req.body.dynki.user.customClaims object
+        
+        // Within the custom claims is the domainIds object. Each key in the object is the id of a domain.
+        // The value part of each domain is an object containing roles.
+        // E.g. domainIds: { rtJT7LAZP4HLrBbNWo1T: { roles: ["ADMINISTRATORS", "BOARD_USERS", "BOARD_CREATORS"] } }
+
+        // We now just need to check if the user has the "ADMINISTRATORS" role for the domain ID we are
+        // currently dealing with. The domain ID should already have been populated (via Express routing)
+        // and should be on the req.body.dynki.data.domainId property.
+
+        const { customClaims } = <any>req.body.dynki.user;
+
+        if (!customClaims.domainIds || !customClaims.domainIds[domainId] || !customClaims.domainIds[domainId].roles) {
+            return false;
+        }
+
+        return customClaims.domainIds[domainId].roles.includes(roles.Administrators);
     }
 
     addAcceptRouter() {
@@ -77,7 +103,7 @@ export class InviteRest extends DynRestBase {
                         members: firestore.FieldValue.arrayUnion({
                             email: user.email,
                             id: newGuid(),
-                            memberOf: ['BOARD_USERS', 'BOARD_CREATORS'],
+                            memberOf: [roles.BoardUsers, roles.BoardCreators],
                             status: 'Active',
                             uid: user.uid
                         })
@@ -86,9 +112,9 @@ export class InviteRest extends DynRestBase {
                 const claims = <any> user.customClaims;
                 const primaryDomain = claims.domainId;
                 const currentDomainIds = claims.domainIds ? claims.domainIds : [];
-                const roles = ['BOARD_USERS', 'BOARD_CREATORS']
+                const userRoles = [roles.BoardUsers, roles.BoardCreators];
 
-                const domainIds = {...currentDomainIds, ...{ [inviteData.domain] : { roles } } };
+                const domainIds = {...currentDomainIds, ...{ [inviteData.domain] : { roles: userRoles } } };
                 await auth().setCustomUserClaims(user.uid, { domainId: primaryDomain, domainIds });
 
                 res.sendStatus(200);
@@ -108,7 +134,7 @@ export class InviteRest extends DynRestBase {
 
     async post(req: Request, res: Response) {
         try {
-            const userAllowed = await this.validateUserIsDomainAdmin(req, req.body.domain);
+            const userAllowed = await this.isAdmin(req, req.body.domain);
 
             if (userAllowed) {
                 if (this.requestValid(req)) {
@@ -161,25 +187,6 @@ export class InviteRest extends DynRestBase {
                 await this.sendEmail(inviteId, invitee, inviter, teamName);
             })
         );
-    }
-
-    async validateUserIsDomainAdmin(req: Request, domainId: string): Promise<boolean> {
-        const domainCollection = await firestore()
-        .collection('user-domains')
-        .where(firestore.FieldPath.documentId(), '==', domainId)
-        .where('users', 'array-contains', req.body.hiddenUid)
-        .get();
-
-        if (domainCollection && domainCollection.docs.length > 0) {
-            const retrievedData = domainCollection.docs[0].data();
-
-            const memberRecord = retrievedData.members.find(m => m.uid === req.body.hiddenUid);
-            const isAnAdmin = memberRecord && memberRecord.memberOf.indexOf('ADMINISTRATORS') > -1;
-
-            return isAnAdmin;
-        } else {
-            return false;
-        } 
     }
 
     async addInviteeRecord(inviteId: string, invite: memberInvite): Promise<any> {
