@@ -78,7 +78,7 @@ export class InviteRest extends DynRestBase {
 
             const inviteData = inviteRecord.data();
 
-            const user: UserRecord = req.body.user;
+            const user: UserRecord = req.body.dynki.user;
 
             // Check that the invite is in a pending state.
             if (inviteData.status === 'pending') {

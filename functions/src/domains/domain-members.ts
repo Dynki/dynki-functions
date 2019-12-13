@@ -87,6 +87,8 @@ export class DomainMembers {
                 const memberToUpdate = domainData.members.find(m => m.uid === req.params.member_id);
                 const containsAdminGroup = req.body.memberOf.indexOf(roles.Administrators) > -1;
 
+                const user = await admin.auth().getUser(memberToUpdate.uid);
+
                 // Cannot remove the domain owner from the "ADMINSTRATORS" group.
                 if (memberToUpdate.uid === domainData.owner && req.body.memberOf && !containsAdminGroup) {
                     res.status(403).send({ error: 'Cannot remove this member from Administrators group' });
@@ -106,13 +108,12 @@ export class DomainMembers {
                         return m;
                     });
     
-                    await admin.firestore().collection('user-domains').doc(req.body.dynki.data.domainId).update({ 
+                    const { customClaims } = <any>user;
+                    const { domainId } = req.body.dynki.data;
+
+                    await admin.firestore().collection('user-domains').doc(domainId).update({ 
                         members: domainMembers
                     });
-
-                    const { customClaims } = <any>req.body.dynki.user;
-                    const { domainId } = req.body.dynki.data;
-                    const { user } = req.body.dynki;
 
                     customClaims.domainIds[domainId].roles = req.body.memberOf;
 
@@ -125,11 +126,9 @@ export class DomainMembers {
     
                     res.sendStatus(200);
                 }
-
             } else {
                 res.status(401).send({ error: 'Unauthorised to perform this operation' });
             }
-
         } catch (error) {
             console.log(error);
             res.status(500).send({ error: req.body.log });
