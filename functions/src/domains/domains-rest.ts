@@ -1,12 +1,10 @@
 import { Express, Request, Response } from 'express';
 import * as admin from 'firebase-admin'; 
 import * as _ from 'lodash';
-import newGuid from '../utils/guid';
 
 import { DynRestBase } from '../base/restbase';
 import { DomainRequest } from '../base/dynki-request';
 
-import roles from './roles-enum';
 import { DomainGroups } from './domain-groups';
 import { DomainMembers } from './domain-members';
 
@@ -108,79 +106,42 @@ export class DomainRest extends DynRestBase {
 
     async post(req: DomainRequest, res: Response) {
         try {
-
-            const { displayName, email, name } = req.body;
+            const { displayName, name, email } = req.body;
             const { user } = req.body.dynki;
 
-            const domainRecord = {
-                name: newGuid(),
-                display_name: name,
-                owner: user.uid,
-                admins: [user.uid],
-                users: [user.uid],
-                groups: [
-                    { id: roles.Administrators, name: roles.Administrators, members: [user.uid] },
-                    { id: roles.BoardUsers, name: roles.BoardUsers, members: [user.uid] },
-                    { id: roles.BoardCreators, name: roles.BoardCreators, members: [user.uid] }
-                ],
-                members: [
-                    { 
-                        id: newGuid(),
-                        uid: user.uid,
-                        email: email,
-                        status: 'Active',
-                        memberOf: [roles.Administrators, roles.BoardUsers, roles.BoardCreators] 
-                    }
-                ]
+            const domainCollection = await admin.firestore()
+                .collection('user-domains').where('owner', '==', user.uid).get();
+
+            if (domainCollection && domainCollection.docs.length > 0) {
+                await admin.firestore()
+                    .collection('domains')
+                    .doc(domainCollection.docs[0].id)
+                    .set({
+                        display_name: name
+                    });
+
+                await admin.firestore()
+                    .collection('user-domains')
+                    .doc(domainCollection.docs[0].id)
+                    .update({
+                        display_name: name
+                    });
+
+                await admin.firestore()
+                    .collection('domains')
+                    .doc(domainCollection.docs[0].id)
+                    .collection('users')
+                    .doc(user.uid)
+                    .set({
+                        email,
+                        displayName
+                    });
+
+                res.json({ id: domainCollection.docs[0].id });
+            } else {
+                res.status(500).send({ error: { message: 'Unable to location domain record to update' } });
             }
 
-            const docRef = await admin.firestore().collection('user-domains').add(domainRecord);
-            const doc = await admin.firestore().collection('user-domains').doc(docRef.id).get();
-            await admin.firestore().collection('domains').doc(docRef.id).set({display_name: name});
-            await admin.firestore().collection('domains').doc(docRef.id).collection('users').doc(user.uid).set({
-                email, displayName
-            });
-            
-            await admin.firestore()
-            .collection('domains')
-            .doc(docRef.id)
-            .collection('users')
-            .doc(user.uid)
-            .collection('messages')
-            .doc('initial')
-            .set({
-                id: 'initial',
-                from: 'Dynki Team',
-                to: [email],
-                subject: 'Welcome to Dynki',
-                body: {
-                    ops: [
-                    { insert: 'Hi, \n\n' +
-                    'Thanks for choosing to give us a try. \n' +
-                    'You can now start creating boards. \n\n' +
-                    'Once again thanks for choosing us. \n\n' +
-                    'Regards \n' },
-                    { insert: 'Team Dynki', attributes: { bold: true } }
-                ]},
-                sent: true,
-                created: new Date(),
-                author: 'Dynki Team',
-                status: 'Unread',
-                read: false,
-                reading: false,
-                selected: false
-            });
-
-            const domainIds = {
-                [docRef.id]: { roles: [roles.Administrators, roles.BoardUsers, roles.BoardCreators] }
-            }
-
-            await admin.auth().setCustomUserClaims(
-                user.uid, 
-                { domainId: docRef.id, domainIds }
-            );
-
-            res.json({ id: doc.data().id });
         } catch (error) {
             console.log(error);
             res.status(500).send({ error });
