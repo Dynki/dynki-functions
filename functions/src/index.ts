@@ -5,6 +5,7 @@ import * as domainFunctions from './domains/domain';
 import * as checkDomainFunctions from './domains/check-domain';
 import * as removeDomainFunctions from './domains/remove-domain';
 import { createStripeCustomer } from './auth/createStripeCustomer';
+import { createUserDomain } from './domains/createUserDomain';
 
 admin.initializeApp();
 
@@ -13,3 +14,4 @@ export const domains = domainFunctions.domain;
 export const checkdomain = checkDomainFunctions.checkDomain;
 export const removeDomain = removeDomainFunctions;
 export const createSubscriptionCustomer = createStripeCustomer;
+export const createDomain = createUserDomain;
