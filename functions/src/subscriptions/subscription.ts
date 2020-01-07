@@ -9,12 +9,12 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(authCheck);
 
-export const domain = functions.https.onRequest((req, res) => {
+export const subscription = functions.https.onRequest((req, res) => {
     if (!req.path) {
         req.url = `/${req.url}` // prepend '/' to keep query params if any
     }
     return app(req, res);
 });
 
-export const domainRest = new SubscriptionRest(app);
+export const subscriptionRest = new SubscriptionRest(app);
 
