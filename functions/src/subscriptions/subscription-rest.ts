@@ -80,7 +80,12 @@ export class SubscriptionRest extends DynRestBase {
                             .doc(domainCollection.docs[0].id)
                             .collection('subscriptions')
                             .doc('subscription')
-                            .update(subscription);
+                            .set(subscription);
+
+                        await admin.firestore()
+                            .collection('domains')
+                            .doc(domainCollection.docs[0].id)
+                            .update({ status });
 
                         res.status(200).send();
                     } else {
