@@ -158,16 +158,15 @@ export class DomainRest extends DynRestBase {
                 ]
             }
 
-            const docRef = await admin.firestore().collection('user-domains').add(domainRecord);
-            const doc = await admin.firestore().collection('user-domains').doc(docRef.id).get();
-            await admin.firestore().collection('domains').doc(docRef.id).set({display_name: name});
-            await admin.firestore().collection('domains').doc(docRef.id).collection('users').doc(user.uid).set({
+            await admin.firestore().collection('user-domains').doc(user.uid).set(domainRecord);
+            await admin.firestore().collection('domains').doc(user.uid).set({ display_name: name, status: 'inactive' });
+            await admin.firestore().collection('domains').doc(user.uid).collection('users').doc(user.uid).set({
                 email, displayName
             });
             
             await admin.firestore()
             .collection('domains')
-            .doc(docRef.id)
+            .doc(user.uid)
             .collection('users')
             .doc(user.uid)
             .collection('messages')
@@ -196,15 +195,15 @@ export class DomainRest extends DynRestBase {
             });
 
             const domainIds = {
-                [docRef.id]: { roles: [roles.Administrators, roles.BoardUsers, roles.BoardCreators] }
+                [user.uid]: { roles: [roles.Administrators, roles.BoardUsers, roles.BoardCreators] }
             }
 
             await admin.auth().setCustomUserClaims(
                 user.uid, 
-                { domainId: docRef.id, domainIds }
+                { domainId: user.uid, domainIds }
             );
 
-            res.json({ id: docRef.id });
+            res.json({ id: user.uid });
         } catch (error) {
             console.log(error);
             res.status(500).send({ error });
