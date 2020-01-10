@@ -13,17 +13,66 @@ export class SubscriptionRest extends DynRestBase {
         super(domainApp);
     }
 
+    async returnId(req: Request, res: Response) {
+        try {
+            res.json(req.body.dynki.data.subscriptionRecord);
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
+
+    async getId(req: Request, res: Response, next, id) {
+        try {
+            const { user } = req.body.dynki;
+
+            // Check if user is owner of the domain.
+            const domainCollection = await admin.firestore()
+            .collection('user-domains')
+            .where('owner', '==', user.uid)
+            .get();
+
+            if (domainCollection && domainCollection.docs.length > 0) {
+                const domainId = domainCollection.docs[0].id;
+
+                // Get the subscription document for this domain.
+                const subsSnapshot = await admin.firestore()
+                .collection('user-domains')
+                .doc(domainId)
+                .collection('subscriptions')
+                .doc('subscription')
+                .get();
+
+                if (subsSnapshot.exists) {
+                    // This is the item we will expose in the response.
+                    req.body.dynki.data.subscriptionRecord = subsSnapshot.data();
+                    req.body.dynki.data.subscriptionId = subsSnapshot.id;
+                    req.body.dynki.data.domainId = domainId;
+                    req.body.dynki.data.domainRawRecord = domainCollection.docs[0].data();
+
+                    next();
+                } else {
+                    res.status(404).send();
+                }
+            } else {
+                res.status(403).send();
+            } 
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
+
     async post(req: Request, res: Response) {
         try {
             const { user } = req.body.dynki;
 
             const plans = { 
-                personal: 'plan_GOBvycKRzKPWQu',
                 business: 'plan_GOBx0tUX4ddXFl'
             }
 
             // Check that a valid plan has been supplied.
-            if (plans[req.body.plan] === undefined) {
+            if (plans['business'] === undefined) {
                 res.status(500).send({ error: 'Invalid plan provided' });    
             } else {
                 const customer = await stripe.customers.create({email: user.email});
@@ -55,7 +104,7 @@ export class SubscriptionRest extends DynRestBase {
                         const subscription = await stripe.subscriptions.create(
                             {
                                 customer: customerData.customer_id,
-                                items: [{plan: plans[req.body.plan]}],
+                                items: [{plan: plans['business']}],
                                 trial_period_days: 30
                             }
                         );
@@ -100,4 +149,28 @@ export class SubscriptionRest extends DynRestBase {
             res.status(500).send({ error });
         }
     }
+
+    async put(req: Request, res: Response) {
+        try {
+            const { user } = req.body.dynki;
+            const { domainRawRecord: domain, subscription } = req.body.dynki.data;
+            const { action } = req.body;
+
+            /**
+             * Actions - SUB (Subscription Update) - UPGRADE | DOWNGRADE | CANCEL
+             *           QTY (Quantity Update) - INCREMENT | DECREMENT
+             */
+
+            if (domain.owner === user.uid) {
+                const subscription = await stripe.subscriptions.put()
+                );
+
+            }
+
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
+
 }
