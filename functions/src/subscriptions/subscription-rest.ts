@@ -44,8 +44,66 @@ export class SubscriptionRest extends DynRestBase {
                 .get();
 
                 if (subsSnapshot.exists) {
+
+                    const subData = subsSnapshot.data();
+
+                    let paymentMethods = await stripe.paymentMethods.list({
+                        customer: subData.customer,
+                        type: 'card'
+                    });
+
+                    if (paymentMethods && paymentMethods.data.length > 0) {
+                        paymentMethods = paymentMethods.data.map(pm => {
+                            return {
+                                id: pm.id,
+                                brand: pm.card.brand,
+                                last4: pm.card.last4,
+                                exp_month: pm.card.exp_month,
+                                exp_year: pm.card.exp_year
+                            }
+                        });
+                    }
+
+                    let invoices = await stripe.invoices.list({
+                        customer: subData.customer
+                    });
+
+                    if (invoices && invoices.data.length > 0) {
+                        invoices = paymentMethods.data.map(i => {
+                            return {
+                                id: i.id,
+                                description: i.description,
+                                amount_due: i.amount_due,
+                                amount_paid: i.amount_paid,
+                                amount_remaining: i.amount_remaining,
+                                due_date: i.due_date,
+                                paid: i.paid,
+                                next_payment_attempt: i.next_payment_attempt,
+                                subtotal: i.subtotal,
+                                tax: i.tax,
+                                tax_percent: i.tax_percent
+                            }
+                        });
+                    }
+
+
+                    const mappedData = {
+                        id: subData.id,
+                        nickname: subData.items.data[0].plan.nickname, 
+                        quantity: subData.items.data[0].quantity,
+                        amount: subData.items.data[0].plan.amount,
+                        tax_percent: subData.tax_percent,
+                        currency: subData.items.data[0].plan.currency, 
+                        interval: subData.items.data[0].plan.interval, 
+                        status: subData.status,
+                        trial_end: subData.trial_end,
+                        next_invoice: subData.next_pending_invoice_item_invoice,
+                        paymentMethods,
+                        invoices
+                    }
+
                     // This is the item we will expose in the response.
-                    req.body.dynki.data.subscriptionRecord = subsSnapshot.data();
+                    req.body.dynki.data.subscriptionRecord = mappedData;
                     req.body.dynki.data.subscriptionId = subsSnapshot.id;
                     req.body.dynki.data.domainId = domainId;
                     req.body.dynki.data.domainRawRecord = domainCollection.docs[0].data();
@@ -101,7 +159,7 @@ export class SubscriptionRest extends DynRestBase {
 
                     if (userDomains.owner === user.uid) {
                         // Create stripe subscription
-                        const subscription = await stripe.subscriptions.create(
+                        const subData = await stripe.subscriptions.create(
                             {
                                 customer: customerData.customer_id,
                                 items: [{plan: plans['business']}],
@@ -109,14 +167,17 @@ export class SubscriptionRest extends DynRestBase {
                             }
                         );
 
-                        const subscriptionData = subscription.plan;
-                        const { nickname } = subscriptionData;
-                        const { status, quantity } = subscription;
-
                         const visibleSubscriptionInfo = {
-                            nickname,
-                            quantity,
-                            status
+                            id: subData.id,
+                            nickname: subData.items.data[0].plan.nickname, 
+                            quantity: subData.items.data[0].quantity,
+                            amount: subData.items.data[0].plan.amount,
+                            tax_percent: subData.tax_percent,
+                            currency: subData.items.data[0].plan.currency, 
+                            interval: subData.items.data[0].plan.interval, 
+                            status: subData.status,
+                            trial_end: subData.trial_end,
+                            next_invoice: subData.next_pending_invoice_item_invoice
                         }
                         
                         await admin.firestore()
@@ -129,12 +190,12 @@ export class SubscriptionRest extends DynRestBase {
                             .doc(domainCollection.docs[0].id)
                             .collection('subscriptions')
                             .doc('subscription')
-                            .set(subscription);
+                            .set(subData);
 
                         await admin.firestore()
                             .collection('domains')
                             .doc(domainCollection.docs[0].id)
-                            .update({ status });
+                            .update({ status: subData.status, subscription: visibleSubscriptionInfo });
 
                         res.status(200).send();
                     } else {
@@ -162,8 +223,8 @@ export class SubscriptionRest extends DynRestBase {
              */
 
             if (domain.owner === user.uid) {
-                const subscription = await stripe.subscriptions.put()
-                );
+                // const subscription = await stripe.subscriptions.put()
+                // );
 
             }
 
