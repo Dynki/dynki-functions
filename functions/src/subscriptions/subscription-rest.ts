@@ -62,6 +62,8 @@ export class SubscriptionRest extends DynRestBase {
                                 exp_year: pm.card.exp_year
                             }
                         });
+                    } else {
+                        paymentMethods = [];
                     }
 
                     let invoices = await stripe.invoices.list({
@@ -97,6 +99,8 @@ export class SubscriptionRest extends DynRestBase {
                                 })
                             }
                         });
+                    } else {
+                        invoices = [];
                     }
 
 
