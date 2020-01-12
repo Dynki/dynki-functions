@@ -69,9 +69,10 @@ export class SubscriptionRest extends DynRestBase {
                     });
 
                     if (invoices && invoices.data.length > 0) {
-                        invoices = paymentMethods.data.map(i => {
+                        invoices = invoices.data.map(i => {
                             return {
                                 id: i.id,
+                                billing_reason: i.billing_reason,
                                 description: i.description,
                                 amount_due: i.amount_due,
                                 amount_paid: i.amount_paid,
@@ -81,7 +82,19 @@ export class SubscriptionRest extends DynRestBase {
                                 next_payment_attempt: i.next_payment_attempt,
                                 subtotal: i.subtotal,
                                 tax: i.tax,
-                                tax_percent: i.tax_percent
+                                tax_percent: i.tax_percent,
+
+                                lines: i.lines.data.map(l => {
+                                    return {
+                                        id: l.id,
+                                        amount: l.amount,
+                                        currency: l.currency,
+                                        description: l.description,
+                                        quantity: l.quantity,
+                                        tax_amounts: l.tax_amounts,
+                                        tax_percent: l.tax_percent
+                                    }
+                                })
                             }
                         });
                     }
