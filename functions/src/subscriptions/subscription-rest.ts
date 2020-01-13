@@ -35,6 +35,8 @@ export class SubscriptionRest extends DynRestBase {
             if (domainCollection && domainCollection.docs.length > 0) {
                 const domainId = domainCollection.docs[0].id;
 
+
+                
                 // Get the subscription document for this domain.
                 const subsSnapshot = await admin.firestore()
                 .collection('user-domains')
@@ -46,6 +48,12 @@ export class SubscriptionRest extends DynRestBase {
                 if (subsSnapshot.exists) {
 
                     const subData = subsSnapshot.data();
+
+                    const customer = await stripe.customers.retrieve(subData.customer, {
+                        expand: ['invoice_settings.default_payment_method']
+                    });
+
+                    const defaultPaymentMethodId = customer.invoice_settings.default_payment_method.id;
 
                     let paymentMethods = await stripe.paymentMethods.list({
                         customer: subData.customer,
@@ -59,7 +67,8 @@ export class SubscriptionRest extends DynRestBase {
                                 brand: pm.card.brand,
                                 last4: pm.card.last4,
                                 exp_month: pm.card.exp_month,
-                                exp_year: pm.card.exp_year
+                                exp_year: pm.card.exp_year,
+                                default: pm.id === defaultPaymentMethodId ? 'Default' : '' 
                             }
                         });
                     } else {
@@ -74,6 +83,7 @@ export class SubscriptionRest extends DynRestBase {
                         invoices = invoices.data.map(i => {
                             return {
                                 id: i.id,
+                                created: i.created,
                                 billing_reason: i.billing_reason,
                                 description: i.description,
                                 amount_due: i.amount_due,
@@ -116,8 +126,11 @@ export class SubscriptionRest extends DynRestBase {
                         trial_end: subData.trial_end,
                         next_invoice: subData.next_pending_invoice_item_invoice,
                         paymentMethods,
-                        invoices
+                        invoices,
+                        customer
                     }
+
+                    // const subResp = await stripe.subscriptions.retrieve(subsSnapshot.id, { expand: ['latest_invoice.payment_intent', 'pending_setup_intent'] });
 
                     // This is the item we will expose in the response.
                     req.body.dynki.data.subscriptionRecord = mappedData;

@@ -13,6 +13,19 @@ export class PaymentMethodsRest extends DynRestBase {
         super(domainApp);
     }
 
+    async getId(req: Request, res: Response, next, id) {
+        try {
+            
+            // More for internal use within these functions.
+            req.body.dynki.data.paymentMethodId = id
+            next();
+
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
+
     async post(req: Request, res: Response) {
         try {
             const { user } = req.body.dynki;
@@ -45,6 +58,15 @@ export class PaymentMethodsRest extends DynRestBase {
                             }
                         );
 
+                        await stripe.customers.update(
+                            customerData.customer_id,
+                            {
+                              invoice_settings: {
+                                default_payment_method: paymentMethodId,
+                              }
+                            }
+                        );
+
                         res.status(200).send();
                     } else {
                         res.status(400).send('Invalid payment method supplied');
@@ -64,18 +86,62 @@ export class PaymentMethodsRest extends DynRestBase {
     async put(req: Request, res: Response) {
         try {
             const { user } = req.body.dynki;
-            const { domainRawRecord: domain, subscription } = req.body.dynki.data;
-            const { action } = req.body;
+            const { paymentMethodId } = req.body.dynki.data;
+
+            // Get Stripe customer id from 'stripe_customers' collection.
+            const stripeCustomersRef = admin.firestore().collection('stripe_customers').doc(user.uid);
+            const customerSnapshot = await stripeCustomersRef.get();
+            const customerData = customerSnapshot.data();
 
             /**
-             * Actions - SUB (Subscription Update) - UPGRADE | DOWNGRADE | CANCEL
-             *           QTY (Quantity Update) - INCREMENT | DECREMENT
+             * Actions: 
              */
+            const { action } = req.body;
 
-            if (domain.owner === user.uid) {
-                // const subscription = await stripe.subscriptions.put()
-                // );
+            // Check if user is owner of the domain.
+            const domainCollection = await admin.firestore()
+                .collection('user-domains')
+                .where('owner', '==', user.uid)
+                .get();
 
+            if (domainCollection && domainCollection.docs.length > 0) {
+                const userDomains = domainCollection.docs[0].data();
+                
+                if (userDomains.owner === user.uid) {
+                    // Create stripe subscription
+
+                    if (paymentMethodId) {
+
+                        switch (action) {
+                            case 'detach':
+                                await stripe.paymentMethods.detach(paymentMethodId);
+
+                                break;
+                            case 'set_default':
+                                await stripe.customers.update(
+                                    customerData.customer_id,
+                                    {
+                                      invoice_settings: {
+                                        default_payment_method: paymentMethodId,
+                                      }
+                                    }
+                                );
+                                    
+                                break;
+                            default:
+                                res.status(400).send('Invalid payment method action supplied');        
+                                break;
+                        }
+
+                        res.status(200).send();
+                    } else {
+                        res.status(400).send('Invalid payment method supplied');
+                    }
+                } else {
+                    res.status(401).send('Unauthorised to perform this operation - not the owner');
+                }
+            } else {
+                res.status(401).send('Unauthorised to perform this operation');
             }
 
         } catch (error) {
