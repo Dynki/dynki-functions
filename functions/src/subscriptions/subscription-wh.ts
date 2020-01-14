@@ -3,7 +3,6 @@ import * as functions from 'firebase-functions';
 import * as Stripe from 'stripe';
 import * as express from 'express';
 import * as cors from 'cors';
-import * as bodyParser from 'body-parser';
 
 const stripe = Stripe(functions.config().stripe.testkey);
 const endpointSecret = functions.config().stripe.subscriptionepsecret;
