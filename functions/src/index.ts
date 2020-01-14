@@ -7,6 +7,7 @@ import * as subscriptionFunctions from './subscriptions/subscription';
 import * as paymentMethodsFunctions from './subscriptions/payment-methods';
 import * as checkDomainFunctions from './domains/check-domain';
 import * as removeDomainFunctions from './domains/remove-domain';
+import { SubscriptionUpdateWebHook } from './subscriptions/subscription-wh';
 
 admin.initializeApp();
 
@@ -17,3 +18,6 @@ export const paymentMethods = paymentMethodsFunctions.paymentMethods;
 export const setupIntents = setupIntentsFunctions.setupIntents;
 export const checkdomain = checkDomainFunctions.checkDomain;
 export const removeDomain = removeDomainFunctions;
+
+// Web hooks for Stripe.
+export const subscriptionUpdated = SubscriptionUpdateWebHook;

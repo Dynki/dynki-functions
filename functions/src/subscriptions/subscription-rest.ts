@@ -34,16 +34,14 @@ export class SubscriptionRest extends DynRestBase {
 
             if (domainCollection && domainCollection.docs.length > 0) {
                 const domainId = domainCollection.docs[0].id;
-
-
                 
                 // Get the subscription document for this domain.
                 const subsSnapshot = await admin.firestore()
-                .collection('user-domains')
-                .doc(domainId)
-                .collection('subscriptions')
-                .doc('subscription')
-                .get();
+                    .collection('user-domains')
+                    .doc(domainId)
+                    .collection('subscriptions')
+                    .doc('subscription')
+                    .get();
 
                 if (subsSnapshot.exists) {
 
@@ -53,7 +51,14 @@ export class SubscriptionRest extends DynRestBase {
                         expand: ['invoice_settings.default_payment_method']
                     });
 
-                    const defaultPaymentMethodId = customer.invoice_settings.default_payment_method.id;
+
+                    const defaultPaymentMethodId = customer && 
+                                                    customer.invoice_settings && 
+                                                    customer.invoice_settings.default_payment_method
+                                                    ?
+                                                    customer.invoice_settings.default_payment_method.id
+                                                    :
+                                                    null;
 
                     let paymentMethods = await stripe.paymentMethods.list({
                         customer: subData.customer,
@@ -113,24 +118,25 @@ export class SubscriptionRest extends DynRestBase {
                         invoices = [];
                     }
 
+                    const subResp = await stripe.subscriptions.retrieve(subData.id, { expand: ['latest_invoice.payment_intent', 'pending_setup_intent'] });
 
                     const mappedData = {
                         id: subData.id,
-                        nickname: subData.items.data[0].plan.nickname, 
-                        quantity: subData.items.data[0].quantity,
-                        amount: subData.items.data[0].plan.amount,
-                        tax_percent: subData.tax_percent,
-                        currency: subData.items.data[0].plan.currency, 
-                        interval: subData.items.data[0].plan.interval, 
-                        status: subData.status,
-                        trial_end: subData.trial_end,
-                        next_invoice: subData.next_pending_invoice_item_invoice,
+                        billing_cycle_anchor: subResp.billing_cycle_anchor,
+                        nickname: subResp.items.data[0].plan.nickname, 
+                        quantity: subResp.items.data[0].quantity,
+                        amount: subResp.items.data[0].plan.amount,
+                        tax_percent: subResp.tax_percent,
+                        currency: subResp.items.data[0].plan.currency, 
+                        interval: subResp.items.data[0].plan.interval, 
+                        status: subResp.status,
+                        trial_start: subResp.trial_start,
+                        trial_end: subResp.trial_end,
+                        next_invoice: subResp.next_pending_invoice_item_invoice,
+                        latest_invoice: subResp.latest_invoice,
                         paymentMethods,
-                        invoices,
-                        customer
+                        invoices
                     }
-
-                    // const subResp = await stripe.subscriptions.retrieve(subsSnapshot.id, { expand: ['latest_invoice.payment_intent', 'pending_setup_intent'] });
 
                     // This is the item we will expose in the response.
                     req.body.dynki.data.subscriptionRecord = mappedData;
@@ -154,6 +160,8 @@ export class SubscriptionRest extends DynRestBase {
     async post(req: Request, res: Response) {
         try {
             const { user } = req.body.dynki;
+
+            const { countryCode } = req.body;
 
             const plans = { 
                 business: 'plan_GOBx0tUX4ddXFl'
@@ -192,7 +200,11 @@ export class SubscriptionRest extends DynRestBase {
                         const subData = await stripe.subscriptions.create(
                             {
                                 customer: customerData.customer_id,
-                                items: [{plan: plans['business']}],
+                                items: [{
+                                    plan: plans['business'],
+                                    // Add VAT if GB country code.
+                                    tax_rates: countryCode === 'GB' ? ['txr_1FxsTKAySKreSZe26HNTl3eH'] : ['']
+                                }],
                                 trial_period_days: 30
                             }
                         );
