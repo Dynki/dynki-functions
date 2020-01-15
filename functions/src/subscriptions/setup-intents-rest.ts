@@ -92,11 +92,11 @@ export class SetupIntentsRest extends DynRestBase {
                                 res.json({ client_secret: setupIntent.client_secret });
     
                             } else {
-                                const { customer } = subResp;
+                                const { customer, latest_invoice } = subResp;
                                 const { quantity } = subResp.items.data[0];
                                 let { amount, currency, nickname } = subResp.items.data[0].plan;
 
-                                if (subResp.latest_invoice && subResp.latest_invoice.amount) {
+                                if (latest_invoice && latest_invoice.billing_reason !== 'subscription_create' && latest_invoice.amount) {
                                     amount =  subResp.latest_invoice.amount;
                                     currency = subResp.latest_invoice.currency;
                                 } else {
