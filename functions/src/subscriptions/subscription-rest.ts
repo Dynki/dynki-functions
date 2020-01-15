@@ -121,9 +121,18 @@ export class SubscriptionRest extends DynRestBase {
 
                     const subResp = await stripe.subscriptions.retrieve(subData.id, { expand: ['latest_invoice.payment_intent', 'pending_setup_intent'] });
 
+                    const taxPercent = subResp.default_tax_rates && subResp.default_tax_rates.length > 0 
+                                        ? subResp.default_tax_rates[0].percentage
+                                        : 0;
+
+                    const cost = subResp.quantity * subResp.plan.amount;
+                    const cost_tax = Math.round((cost / 100) * taxPercent);
+
                     const mappedData = {
                         id: subData.id,
                         billing_cycle_anchor: subResp.billing_cycle_anchor,
+                        cost,
+                        cost_tax,
                         nickname: subResp.items.data[0].plan.nickname, 
                         quantity: subResp.items.data[0].quantity,
                         amount: subResp.items.data[0].plan.amount,
@@ -162,7 +171,7 @@ export class SubscriptionRest extends DynRestBase {
         try {
             const { user } = req.body.dynki;
 
-            const { countryCode } = req.body;
+            const { countryCode, VATNumber } = req.body;
 
             const plans = { 
                 business: 'plan_GOBx0tUX4ddXFl'
@@ -173,6 +182,12 @@ export class SubscriptionRest extends DynRestBase {
                 res.status(500).send({ error: 'Invalid plan provided' });    
             } else {
                 const customer = await stripe.customers.create({email: user.email});
+
+                if (VATNumber) {
+                    await stripe.customer.createTaxId(customer.id, 
+                        { type: 'eu_vat', value: VATNumber }
+                    )
+                }
                 await admin.firestore().collection('stripe_customers').doc(user.uid).set({customer_id: customer.id});
             
                 // Get Stripe customer id from 'stripe_customers' collection.
@@ -203,10 +218,12 @@ export class SubscriptionRest extends DynRestBase {
                                 customer: customerData.customer_id,
                                 items: [{
                                     plan: plans['business'],
+                                    quantity: 1,
                                     // Add VAT if GB country code.
-                                    tax_rates: countryCode === 'GB' ? ['txr_1FxsTKAySKreSZe26HNTl3eH'] : ['']
+                                    tax_rates: countryCode === 'GB' ? ['txr_1FxsTKAySKreSZe26HNTl3eH'] : []
                                 }],
-                                trial_period_days: 30
+                                trial_period_days: 30,
+                                default_tax_rates: countryCode === 'GB' ? ['txr_1FxsTKAySKreSZe26HNTl3eH'] : []
                             }
                         );
 
@@ -240,7 +257,7 @@ export class SubscriptionRest extends DynRestBase {
                             .doc(domainCollection.docs[0].id)
                             .update({ status: subData.status, subscription: visibleSubscriptionInfo });
 
-                        res.status(200).send();
+                        res.json(visibleSubscriptionInfo);
                     } else {
                         res.status(401).send('Unauthorised to perform this operation - not the owner');
                     }
