@@ -59,7 +59,7 @@ class SubscriptionHelper {
                     expand: ['invoice_settings.default_payment_method']
                 });
 
-                const paymentMethods = await this.getPaymentMethods(subData);
+                const paymentMethods = await this.getPaymentMethods(subData, customer);
                 const invoices = await this.getInvoices(subData);
 
 
@@ -82,6 +82,7 @@ class SubscriptionHelper {
                     amount: subResp.items.data[0].plan.amount,
                     tax_percent: subResp.tax_percent,
                     currency: subResp.items.data[0].plan.currency,
+                    default_payment_method: subResp.default_payment_method,
                     interval: subResp.items.data[0].plan.interval,
                     status: subResp.status,
                     trial_start: subResp.trial_start,
@@ -102,8 +103,7 @@ class SubscriptionHelper {
         }
     }
 
-    async getPaymentMethods(subData: Subscription): Promise<Array<any>> {
-        const { customer } = subData;
+    async getPaymentMethods(subData: Subscription, customer): Promise<Array<any>> {
 
         const defaultPaymentMethodId = customer &&
             customer.invoice_settings &&
@@ -114,7 +114,7 @@ class SubscriptionHelper {
             null;
 
         let paymentMethods = await stripe.paymentMethods.list({
-            customer: customer,
+            customer: customer.id,
             type: 'card'
         });
 
@@ -383,7 +383,7 @@ class SubscriptionHelper {
     
                 const setupIntent = await stripe.setupIntents.create(
                     {
-                        customer: customerData.customer_id,
+                        customer: customerData.id,
                         payment_method: paymentMethodId
                     }
                 );
