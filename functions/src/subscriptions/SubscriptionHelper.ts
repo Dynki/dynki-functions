@@ -77,6 +77,7 @@ class SubscriptionHelper {
                     billing_cycle_anchor: subResp.billing_cycle_anchor,
                     cost,
                     cost_tax,
+                    customer,
                     nickname: subResp.items.data[0].plan.nickname,
                     quantity: subResp.items.data[0].quantity,
                     amount: subResp.items.data[0].plan.amount,
@@ -308,6 +309,19 @@ class SubscriptionHelper {
     async cancelSubscriptionForUser(user: UserRecord) {
         if (await this.checkIsOwner(user.uid)) {
             const subData = await this.getSubscriptionForUser(user.uid);
+
+            const invoiceItems = await stripe.invoiceItems.list({ 
+                    customer: subData.customer.id,
+                    pending: true
+            });
+
+            /**
+             * Remove pending invoice items and clear usage
+             * https://stripe.com/docs/billing/subscriptions/canceling-pausing
+             */
+            invoiceItems.data.map(async i => { await stripe.invoiceItems.del(i.id) });
+            await stripe.subscriptions.update('sub_GZppnzttrkCEa5', { clear_usage: true });
+
             const updatedSubData = await stripe.subscriptions.del(subData.id);
             await this.updateSubscriptionInformationForUser(user, updatedSubData);
 
