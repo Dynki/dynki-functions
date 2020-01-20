@@ -9,7 +9,8 @@ const stripe = require('stripe')(functions.config().stripe.testkey);
 class SubscriptionHelper {
 
     plans = {
-        business: 'plan_GOBx0tUX4ddXFl'
+        business: 'plan_GZqy3BGikx8mUt',
+        businessUSD: 'plan_GZqyW4gPwwDea2'
     }
 
     private async getUserSubscription(uid): Promise<Subscription> {
@@ -78,6 +79,10 @@ class SubscriptionHelper {
                     cost,
                     cost_tax,
                     customer,
+                    cancel_at: subResp.cancel_at,
+                    cancel_at_period_end: subResp.cancel_at_period_end,
+                    canceled_at: subResp.canceled_at,
+                    ended_at: subResp.ended_at,
                     nickname: subResp.items.data[0].plan.nickname,
                     quantity: subResp.items.data[0].quantity,
                     amount: subResp.items.data[0].plan.amount,
@@ -90,6 +95,7 @@ class SubscriptionHelper {
                     trial_end: subResp.trial_end,
                     next_invoice: subResp.next_pending_invoice_item_invoice,
                     latest_invoice: subResp.latest_invoice,
+                    items: subResp.items,
                     invoices,
                     paymentMethods
                 }
@@ -212,38 +218,35 @@ class SubscriptionHelper {
     async addSubscriptionForUser(user: UserRecord, countryCode: string, VATNumber: string, existingCustomerId = '') {
         try {
 
-            // Check that a valid plan has been supplied.
-            if (this.plans['business'] === undefined) {
-                throw new Error('Could not locate correct plan for subscription');
-            } else {
-                if (await this.checkIsOwner(user.uid)) {
+            let planCode = countryCode === 'GB' ? this.plans.business : this.plans.businessUSD
 
-                    let customerId;
-                    let existingCustomerFlag = false;
+            if (await this.checkIsOwner(user.uid)) {
 
-                    if (!existingCustomerId || existingCustomerId === '') {
-                        existingCustomerFlag = false;
-                        const customer = await this.createStripeCustomer(user.email, countryCode, VATNumber);
-                        customerId = customer.id;
+                let customerId;
+                let existingCustomerFlag = false;
 
-                        await this.setStripeCustomerData(user, customerId);
-                    } else {
-                        existingCustomerFlag = true;
-                        customerId = existingCustomerId;
-                    }
+                if (!existingCustomerId || existingCustomerId === '') {
+                    existingCustomerFlag = false;
+                    const customer = await this.createStripeCustomer(user.email, countryCode, VATNumber);
+                    customerId = customer.id;
 
-                    const customerData = await this.getStripeCustomerData(user);
-
-                    console.log('customerData: ', customerData);
-                    console.log('customerId: ', customerId);
-
-                    const subData = await this.createNewStripeSubscription(customerId, this.plans['business'], countryCode, existingCustomerFlag);
-                    const visibleSubscriptionInfo = await this.updateSubscriptionInformationForUser(user, subData);
-
-                    return visibleSubscriptionInfo;
+                    await this.setStripeCustomerData(user, customerId);
                 } else {
-                    throw new Error('Unauthorised to perform this operation - not the owner');
+                    existingCustomerFlag = true;
+                    customerId = existingCustomerId;
                 }
+
+                const customerData = await this.getStripeCustomerData(user);
+
+                console.log('customerData: ', customerData);
+                console.log('customerId: ', customerId);
+
+                const subData = await this.createNewStripeSubscription(customerId, planCode, countryCode, existingCustomerFlag);
+                const visibleSubscriptionInfo = await this.updateSubscriptionInformationForUser(user, subData);
+
+                return visibleSubscriptionInfo;
+            } else {
+                throw new Error('Unauthorised to perform this operation - not the owner');
             }
         } catch (error) {
             return error;
@@ -310,21 +313,27 @@ class SubscriptionHelper {
         if (await this.checkIsOwner(user.uid)) {
             const subData = await this.getSubscriptionForUser(user.uid);
 
-            const invoiceItems = await stripe.invoiceItems.list({ 
-                    customer: subData.customer.id,
-                    pending: true
-            });
-
             /**
              * Remove pending invoice items and clear usage
              * https://stripe.com/docs/billing/subscriptions/canceling-pausing
              */
-            invoiceItems.data.map(async i => { await stripe.invoiceItems.del(i.id) });
-            await stripe.subscriptions.update('sub_GZppnzttrkCEa5', { clear_usage: true });
+            const invoiceItems = await stripe.invoiceItems.list({ 
+                customer: subData.customer.id,
+                pending: true
+            });
 
-            const updatedSubData = await stripe.subscriptions.del(subData.id);
+             invoiceItems.data.map(async i => {
+                await stripe.subscriptionItems.del(i.id);
+            });
+
+            let updatedSubData;
+            if (subData.status === 'active') {
+                updatedSubData = await stripe.subscriptions.update(subData.id, { cancel_at_period_end: true });
+            } else {
+                updatedSubData = await stripe.subscriptions.del(subData.id);
+            }
+    
             await this.updateSubscriptionInformationForUser(user, updatedSubData);
-
         } else {
             throw new Error('Not owner of domain');
         }
@@ -442,6 +451,40 @@ class SubscriptionHelper {
             throw new Error('Unauthorised to perform this operation - not the owner');
         }
     }
+
+    async reactivateSubscriptionForUser(user: UserRecord) {
+        try {
+
+            if (await this.checkIsOwner(user.uid)) {
+
+                const subData = await this.getSubscriptionForUser(user.uid);
+
+                if (subData.status === 'active' && subData.cancel_at_period_end === true) {
+                    await stripe.subscriptions.update(subData.id, { cancel_at_period_end: false });
+
+                } else {
+                    throw new Error('Cannot reactive this subscription');
+                }
+
+            } else {
+                throw new Error('Unauthorised to perform this operation - not the owner');
+            }
+        } catch (error) {
+            return error;
+        }
+    }
+
+    async increaseSubscriptionQuantity(uid, increaseBy = 1) {
+        try {
+            const subData = await this.getSubscriptionForUser(uid);
+            const quantity = subData.quantity + increaseBy;
+            await stripe.subscriptions.update(subData.id, { quantity });
+
+        } catch (error) {
+            return error;
+        }
+    }
+
 }
 
 export default SubscriptionHelper;

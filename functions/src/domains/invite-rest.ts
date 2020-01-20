@@ -10,6 +10,7 @@ import newGuid from '../utils/guid';
 import roles from './roles-enum';
 import { DynRestBase } from '../base/restbase';
 import { DomainRequest } from '../base/dynki-request';
+import SubscriptionHelper from '../subscriptions/SubscriptionHelper';
 
 interface memberInvite {
     name: string;
@@ -23,9 +24,12 @@ interface memberInvite {
 }
 
 export class InviteRest extends DynRestBase {
+    helper: SubscriptionHelper;
 
     constructor(public domainApp: Express) {
         super(domainApp);
+
+        this.helper = new SubscriptionHelper();
 
         /**
          * accept
@@ -107,7 +111,9 @@ export class InviteRest extends DynRestBase {
                             status: 'Active',
                             uid: user.uid
                         })
-                     });
+                    });
+
+                await this.helper.increaseSubscriptionQuantity(inviteData.domain);
 
                 const claims = <any> user.customClaims;
                 const primaryDomain = claims.domainId;

@@ -54,6 +54,24 @@ export class SubscriptionRest extends DynRestBase {
         }
     }
 
+    async put(req: Request, res: Response) {
+        try {
+            const { user } = req.body.dynki;
+            const { action } = req.body;
+
+            if (action === 'reactivate') {
+                await this.helper.reactivateSubscriptionForUser(user);
+                res.status(200).send();
+            } else {
+                res.status(400).send({ error: 'Invalid action supplied' });
+            }
+
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error });
+        }
+    }
+
     async delete(req: Request, res: Response) {
         try {
             const { user } = req.body.dynki;
