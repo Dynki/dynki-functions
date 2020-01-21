@@ -215,10 +215,10 @@ class SubscriptionHelper {
         return customer;
     }
 
-    async addSubscriptionForUser(user: UserRecord, countryCode: string, VATNumber: string, existingCustomerId = '') {
+    async addSubscriptionForUser(user: UserRecord, countryCode: string, VATNumber: string, existingCustomerId = '', quantity = 1) {
         try {
 
-            let planCode = countryCode === 'GB' ? this.plans.business : this.plans.businessUSD
+            const planCode = countryCode === 'GB' ? this.plans.business : this.plans.businessUSD;
 
             if (await this.checkIsOwner(user.uid)) {
 
@@ -241,10 +241,10 @@ class SubscriptionHelper {
                 console.log('customerData: ', customerData);
                 console.log('customerId: ', customerId);
 
-                const subData = await this.createNewStripeSubscription(customerId, planCode, countryCode, existingCustomerFlag);
-                const visibleSubscriptionInfo = await this.updateSubscriptionInformationForUser(user, subData);
+                const subData = await this.createNewStripeSubscription(customerId, planCode, countryCode, existingCustomerFlag, quantity);
+                await this.updateSubscriptionInformationForUser(user, subData);
 
-                return visibleSubscriptionInfo;
+                return subData;
             } else {
                 throw new Error('Unauthorised to perform this operation - not the owner');
             }
@@ -253,7 +253,7 @@ class SubscriptionHelper {
         }
     }
 
-    private async createNewStripeSubscription(customerId, planId, countryCode, existingCustomerFlag = false) {
+    private async createNewStripeSubscription(customerId, planId, countryCode, existingCustomerFlag = false, quantity = 1) {
 
         const trial_period_days = existingCustomerFlag ? 0 : 30;
 
@@ -263,7 +263,7 @@ class SubscriptionHelper {
                 customer: customerId,
                 items: [{
                     plan: planId,
-                    quantity: 1,
+                    quantity,
                     // Add VAT if GB country code.
                     tax_rates: countryCode === 'GB' ? ['txr_1FxsTKAySKreSZe26HNTl3eH'] : []
                 }],
@@ -322,7 +322,7 @@ class SubscriptionHelper {
                 pending: true
             });
 
-             invoiceItems.data.map(async i => {
+            invoiceItems.data.map(async i => {
                 await stripe.subscriptionItems.del(i.id);
             });
 
@@ -353,7 +353,7 @@ class SubscriptionHelper {
         if (await this.checkIsOwner(user.uid)) {
             const subData = await this.getSubscriptionForUser(user.uid);
 
-            const subResp = await stripe.subscriptions
+            let subResp = await stripe.subscriptions
                 .retrieve(subData.id, {
                     expand: ['customer', 'latest_invoice.payment_intent', 'pending_setup_intent']
                 });
@@ -363,90 +363,101 @@ class SubscriptionHelper {
             console.log('A');
 
             if (subResp.status === 'canceled') {
-                await this.addSubscriptionForUser(
+
+                // Adding another subscription automatically charges the customer 
+                // because a default payment method has already been attached.
+
+                subResp = await this.addSubscriptionForUser(
                     user,
                     customerData.metadata.country_code,
                     customerData.metadata.vat_number,
                     customerData.id
                 );
-            }
 
-            console.log('B');
+                subResp = await stripe.subscriptions
+                .retrieve(subResp.id, {
+                    expand: ['customer', 'latest_invoice.payment_intent', 'pending_setup_intent']
+                });
 
-            let createAnIntent;
-            switch (subResp.status) {
-                case 'active':
-                    createAnIntent = true;
-                    break;
-                case 'trialing':
-                    createAnIntent = true;
-                    break;
-                case 'unpaid':
-                    createAnIntent = false;
-                    break;
-                case 'past_due':
-                    createAnIntent = false;
-                    break;
-                case 'incomplete':
-                    createAnIntent = false;
-                    break;
-                case 'incomplete_expired':
-                    createAnIntent = false;
-                    break;
-                case 'canceled':
-                    createAnIntent = false;
-                    break;
-                default:
-                    createAnIntent = true;
-                    break
-            }
-
-            if (createAnIntent) {
-                console.log('C');
-    
-                const setupIntent = await stripe.setupIntents.create(
-                    {
-                        customer: customerData.id,
-                        payment_method: paymentMethodId
-                    }
-                );
-
-                console.log('D');
-
-                return { client_secret: setupIntent.client_secret };
-
+                return { client_secret: null, subscription: subResp };
+                
             } else {
-                console.log('E');
 
-                const { customer, latest_invoice } = subResp;
-                const { quantity } = subResp.items.data[0];
-                let { amount, currency, nickname } = subResp.items.data[0].plan;
-
-                if (latest_invoice && latest_invoice.billing_reason !== 'subscription_create' && latest_invoice.amount) {
-                    amount = subResp.latest_invoice.amount;
-                    currency = subResp.latest_invoice.currency;
+                console.log('B');
+    
+                let createAnIntent;
+                switch (subResp.status) {
+                    case 'active':
+                        createAnIntent = true;
+                        break;
+                    case 'trialing':
+                        createAnIntent = true;
+                        break;
+                    case 'unpaid':
+                        createAnIntent = false;
+                        break;
+                    case 'past_due':
+                        createAnIntent = false;
+                        break;
+                    case 'incomplete':
+                        createAnIntent = false;
+                        break;
+                    case 'incomplete_expired':
+                        createAnIntent = false;
+                        break;
+                    default:
+                        createAnIntent = true;
+                        break
+                }
+    
+                if (createAnIntent) {
+                    console.log('C');
+        
+                    const setupIntent = await stripe.setupIntents.create(
+                        {
+                            customer: customerData.id,
+                            payment_method: paymentMethodId
+                        }
+                    );
+    
+                    console.log('D');
+    
+                    return { client_secret: setupIntent.client_secret, subscription: subResp };
+    
                 } else {
-                    amount = amount * quantity;
+                    console.log('E');
+    
+                    const { customer, latest_invoice } = subResp;
+                    const { quantity } = subResp.items.data[0];
+                    let { amount, currency } = subResp.items.data[0].plan;
+                    const { nickname } = subResp.items.data[0].plan;
+    
+                    if (latest_invoice && latest_invoice.billing_reason !== 'subscription_create' && latest_invoice.amount) {
+                        amount = subResp.latest_invoice.amount;
+                        currency = subResp.latest_invoice.currency;
+                    } else {
+                        amount = amount * quantity;
+                    }
+    
+                    console.log('F');
+    
+                    const paymentIntent = await stripe.paymentIntents.create(
+                        {
+                            customer: customer.id,
+                            description: nickname,
+                            payment_method_types: ['card'],
+                            payment_method: paymentMethodId,
+                            amount,
+                            currency
+                        }
+                    );
+    
+                    console.log('G');
+    
+                    return { client_secret: paymentIntent.client_secret, subscription: subResp };
                 }
 
-                console.log('F');
-
-                const paymentIntent = await stripe.paymentIntents.create(
-                    {
-                        customer: customer.id,
-                        description: nickname,
-                        payment_method_types: ['card'],
-                        payment_method: paymentMethodId,
-                        amount,
-                        currency
-                    }
-                );
-
-                console.log('G');
-
-                return { client_secret: paymentIntent.client_secret };
             }
-
         } else {
             throw new Error('Unauthorised to perform this operation - not the owner');
         }
@@ -478,6 +489,18 @@ class SubscriptionHelper {
         try {
             const subData = await this.getSubscriptionForUser(uid);
             const quantity = subData.quantity + increaseBy;
+            await stripe.subscriptions.update(subData.id, { quantity });
+
+        } catch (error) {
+            return error;
+        }
+    }
+
+    async decreaseSubscriptionQuantity(uid, increaseBy = 1) {
+        try {
+            const subData = await this.getSubscriptionForUser(uid);
+            let quantity = subData.quantity - increaseBy;
+            quantity  = quantity < 1 ? 1 : quantity;
             await stripe.subscriptions.update(subData.id, { quantity });
 
         } catch (error) {

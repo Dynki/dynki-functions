@@ -4,13 +4,18 @@ import * as admin from 'firebase-admin';
 import * as _ from 'lodash';
 
 import { DynRestBase } from '../base/restbase';
+import SubscriptionHelper from './SubscriptionHelper';
+import { subscription } from './subscription';
 
 const functions = require('firebase-functions');
 const stripe = require('stripe')(functions.config().stripe.testkey);
 
 export class PaymentMethodsRest extends DynRestBase {
+    helper: SubscriptionHelper;
+
     constructor(public domainApp: Express) {
         super(domainApp);
+        this.helper = new SubscriptionHelper();
     }
 
     async getId(req: Request, res: Response, next, id) {
@@ -49,6 +54,12 @@ export class PaymentMethodsRest extends DynRestBase {
 
                 if (userDomains.owner === user.uid) {
                     // Create stripe subscription
+
+                    const subData = await this.helper.getSubscriptionForUser(user.uid);
+
+                    if (subData.cancel_at_period_end === true) {
+                        await stripe.subscriptions.update(subData.id, { cancel_at_period_end: false });
+                    }
 
                     if (paymentMethodId) {
                         await stripe.paymentMethods.attach(

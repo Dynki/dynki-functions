@@ -90,7 +90,7 @@ export class DomainRest extends DynRestBase {
             const domainCollection = await admin.firestore()
                 .collection('user-domains')
                 .where(admin.firestore.FieldPath.documentId(), '==', id)
-                .where('users', 'array-contains', user.uid)
+                .where('users', 'array-contains' , user.uid)
                 .get();
 
             if (domainCollection && domainCollection.docs.length > 0) {

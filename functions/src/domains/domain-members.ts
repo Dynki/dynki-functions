@@ -3,12 +3,15 @@ import * as admin from 'firebase-admin';
 
 import { DomainRequest } from '../base/dynki-request';
 import roles from './roles-enum';
+import SubscriptionHelper from '../subscriptions/SubscriptionHelper';
 
 export class DomainMembers {
     router: Router;
+    helper: SubscriptionHelper;
 
     constructor(domainApp: Express) {
         this.router = Router({ mergeParams: true });
+        this.helper = new SubscriptionHelper();
 
         // Get all members on the domain
         this.router.route('/').get(this.getMembers.bind(this));
@@ -16,6 +19,7 @@ export class DomainMembers {
         // Individual member mapping.
         this.router.route('/:member_id').get(this.returnMember.bind(this));
         this.router.route('/:member_id').put(this.updateMember.bind(this));
+        this.router.route('/:member_id').delete(this.deleteMember.bind(this));
 
         domainApp.param('member_id', this.getMemberId.bind(this));
         domainApp.use('/:id/members', this.router.bind(this));
@@ -76,6 +80,66 @@ export class DomainMembers {
         } catch (error) {
             console.log(error);
             res.status(500).send({ error });
+        }
+    }
+
+    async deleteMember(req: DomainRequest, res: Response) {
+        try {
+            if (this.isAdmin(req)) {
+
+                const domainData = req.body.dynki.data.domainRawRecord;
+                const memberId = req.params.member_id;
+                const memberToDelete = domainData.members.find(g => g.id === memberId);
+                
+                if (memberToDelete) {
+
+                        const containsAdminGroup = memberToDelete.memberOf.indexOf(roles.Administrators) > -1;
+                        const user = await admin.auth().getUser(memberToDelete.uid);
+        
+                        // Cannot remove the domain owner from the "ADMINSTRATORS" group.
+                        if (memberToDelete.uid === domainData.owner && req.body.memberOf && !containsAdminGroup) {
+                            res.status(403).send({ error: 'Cannot remove this member from Administrators group' });
+                        } else {
+
+                            console.log('Domain data: ', domainData);
+
+                            if (domainData.members.find(m => m.uid === user.uid)) {
+        
+                                const domainMembers = domainData.members.filter(m => m.uid !== user.uid);
+                
+                                const { customClaims } = <any>user;
+                                const { domainId } = req.body.dynki.data;
+            
+                                await admin.firestore().collection('user-domains').doc(domainId).update({ 
+                                    members: domainMembers
+                                });
+            
+                                delete customClaims.domainIds[domainId];
+            
+                                await admin.auth().setCustomUserClaims(user.uid, 
+                                    { 
+                                        domainId: customClaims.domainId,
+                                        domainIds: customClaims.domainIds 
+                                    }
+                                );
+            
+                                await this.helper.decreaseSubscriptionQuantity(domainId);
+                
+                                res.sendStatus(200);
+                            } else {
+                                res.status(404).send({ error: 'Member not attached to this domain' });                                
+                            }
+                        }
+                } else {
+                    res.status(404).send({ error: `Could not locate member id (${memberId}) in domain` });                                
+                }
+
+            } else {
+                res.status(401).send({ error: 'Unauthorised to perform this operation' });
+            }
+        } catch (error) {
+            console.log(error);
+            res.status(500).send({ error: req.body.log });
         }
     }
 

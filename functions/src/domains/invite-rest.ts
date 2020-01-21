@@ -96,7 +96,7 @@ export class InviteRest extends DynRestBase {
 
                 await firestore()
                     .collection('user-domains')
-                    .doc(inviteData.domain)
+                    .doc(inviteData.domain) 
                     .get();
                 
                 await firestore()
