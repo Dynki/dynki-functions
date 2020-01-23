@@ -1,6 +1,5 @@
 import * as admin from 'firebase-admin';
 import { Subscription } from 'stripe';
-import { subscription } from './subscription';
 import { UserRecord } from 'firebase-functions/lib/providers/auth';
 
 const functions = require('firebase-functions');
@@ -9,8 +8,8 @@ const stripe = require('stripe')(functions.config().stripe.testkey);
 class SubscriptionHelper {
 
     plans = {
-        business: 'plan_GZqy3BGikx8mUt',
-        businessUSD: 'plan_GZqyW4gPwwDea2'
+        business: 'plan_Gb1hMAperXfpUE',
+        businessUSD: 'plan_Gb1hGitW9qTiBS'
     }
 
     private async getUserSubscription(uid): Promise<Subscription> {
@@ -20,6 +19,16 @@ class SubscriptionHelper {
             .doc(uid)
             .collection('subscriptions')
             .doc('subscription')
+            .get();
+
+        return subsSnapshot.data();
+    }
+
+    private async getUserDomain(uid): Promise<Subscription> {
+        // Get the subscription document for this domain.
+        const subsSnapshot = await admin.firestore()
+            .collection('user-domains')
+            .doc(uid)
             .get();
 
         return subsSnapshot.data();
@@ -165,7 +174,8 @@ class SubscriptionHelper {
                     subtotal: i.subtotal / 100,
                     tax: i.tax / 100,
                     tax_percent: i.tax_percent,
-
+                    hosted_invoice_url: i.hosted_invoice_url,
+                    invoice_pdf: i.invoice_pdf,
                     lines: i.lines.data.map(l => {
                         return {
                             id: l.id,
@@ -331,6 +341,11 @@ class SubscriptionHelper {
                 updatedSubData = await stripe.subscriptions.update(subData.id, { cancel_at_period_end: true });
             } else {
                 updatedSubData = await stripe.subscriptions.del(subData.id);
+
+                if (subData.status === 'trialing') {
+                    // Cancelling a trial so remove all the users. 
+                    await this.removeAllMembersFromDomain(user);
+                }
             }
     
             await this.updateSubscriptionInformationForUser(user, updatedSubData);
@@ -508,6 +523,34 @@ class SubscriptionHelper {
         }
     }
 
+    async removeAllMembersFromDomain(user: UserRecord) {
+        const currentDomainData = await this.getUserDomain(user.uid);
+
+        // Loop through all the members (who are not the owner) of the domain, 
+        // and remove the permission to the domain from each users custom claims token.
+        currentDomainData.members.map(async m => {
+
+            if (m.uid !== user.uid) {
+                const userMember: UserRecord = await admin.auth().getUser(m.uid);
+    
+                const claims = <any> userMember.customClaims;
+                const primaryDomain = claims.domainId;
+                const currentDomainIds = claims.domainIds;
+    
+                delete currentDomainIds[user.uid];
+    
+                await admin.auth().setCustomUserClaims(userMember.uid, { domainId: primaryDomain, domainIds: currentDomainIds });
+            }
+
+            return m;
+        })
+
+        // Remove the user from the members array  on the domain.
+        await admin.firestore()
+            .collection('user-domains')
+            .doc(user.uid)
+            .update({ members: currentDomainData.members.filter(m => m.uid === user.uid) });
+    }
 }
 
 export default SubscriptionHelper;
