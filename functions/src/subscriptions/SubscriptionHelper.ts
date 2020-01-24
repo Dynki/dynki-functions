@@ -84,29 +84,30 @@ class SubscriptionHelper {
 
                 const mappedData = {
                     id: subData.id,
+                    amount: subResp.items.data[0].plan.amount,
                     billing_cycle_anchor: subResp.billing_cycle_anchor,
-                    cost,
-                    cost_tax,
-                    customer,
                     cancel_at: subResp.cancel_at,
                     cancel_at_period_end: subResp.cancel_at_period_end,
                     canceled_at: subResp.canceled_at,
-                    ended_at: subResp.ended_at,
-                    nickname: subResp.items.data[0].plan.nickname,
-                    quantity: subResp.items.data[0].quantity,
-                    amount: subResp.items.data[0].plan.amount,
-                    tax_percent: subResp.tax_percent,
+                    cost,
+                    cost_tax,
                     currency: subResp.items.data[0].plan.currency,
+                    customer,
                     default_payment_method: subResp.default_payment_method,
+                    ended_at: subResp.ended_at,
                     interval: subResp.items.data[0].plan.interval,
-                    status: subResp.status,
-                    trial_start: subResp.trial_start,
-                    trial_end: subResp.trial_end,
-                    next_invoice: subResp.next_pending_invoice_item_invoice,
-                    latest_invoice: subResp.latest_invoice,
-                    items: subResp.items,
                     invoices,
-                    paymentMethods
+                    items: subResp.items,
+                    latest_invoice: subResp.latest_invoice,
+                    next_invoice: subResp.next_pending_invoice_item_invoice,
+                    next_invoice_due: subResp.current_period_end ? subResp.current_period_end : subResp.trial_end,
+                    nickname: subResp.items.data[0].plan.nickname,
+                    paymentMethods,
+                    quantity: subResp.items.data[0].quantity,
+                    status: subResp.status,
+                    tax_percent: subResp.tax_percent,
+                    trial_end: subResp.trial_end,
+                    trial_start: subResp.trial_start
                 }
 
                 return mappedData;
@@ -161,19 +162,13 @@ class SubscriptionHelper {
             invoices = invoices.data.map(i => {
                 return {
                     id: i.id,
-                    created: i.created,
-                    billing_reason: i.billing_reason,
-                    description: i.description,
                     amount_due: i.amount_due / 100,
                     amount_paid: i.amount_paid / 100,
                     amount_remaining: i.amount_remaining / 100,
+                    billing_reason: i.billing_reason,
+                    created: i.created,
                     currency: i.currency ? i.currency.toLocaleUpperCase() : i.currency,
-                    paid: i.paid,
-                    status: i.status,
-                    next_payment_attempt: i.next_payment_attempt,
-                    subtotal: i.subtotal / 100,
-                    tax: i.tax / 100,
-                    tax_percent: i.tax_percent,
+                    description: i.description,
                     hosted_invoice_url: i.hosted_invoice_url,
                     invoice_pdf: i.invoice_pdf,
                     lines: i.lines.data.map(l => {
@@ -186,7 +181,13 @@ class SubscriptionHelper {
                             tax_amounts: l.tax_amounts,
                             tax_percent: l.tax_percent
                         }
-                    })
+                    }),
+                    next_payment_attempt: i.next_payment_attempt,
+                    paid: i.paid,
+                    status: i.status,
+                    subtotal: i.subtotal / 100,
+                    tax: i.tax / 100,
+                    tax_percent: i.tax_percent
                 }
             });
         } else {
@@ -210,22 +211,34 @@ class SubscriptionHelper {
         return customerData;
     }
 
-    async createStripeCustomer(email, countryCode, VATNumber) {
-        const customer = await stripe.customers.create({ 
-            email: email, 
-            metadata: { country_code: countryCode, vat_number: VATNumber } 
-        });
-
-        if (VATNumber) {
-            await stripe.customer.createTaxId(customer.id,
-                { type: 'eu_vat', value: VATNumber }
-            )
+    async createStripeCustomer(email: string, countryCode: string, region: string, VATNumber: string) {
+        try {
+            let tax_exempt = 'none';
+    
+            if (countryCode !== 'GB' && region === 'Europe' && VATNumber && VATNumber !== '') {
+                tax_exempt = 'reverse';
+            }
+    
+            const customer = await stripe.customers.create({ 
+                email: email, 
+                metadata: { country_code: countryCode, region, vat_number: VATNumber },
+                tax_exempt            
+            });
+    
+            if (VATNumber) {
+                await stripe.customers.createTaxId(customer.id,
+                    { type: 'eu_vat', value: VATNumber }
+                )
+            }
+    
+            return customer;
+        } catch (error) {
+            console.log('ERROR: creating Stripe customer:', error);
+            return error;            
         }
-
-        return customer;
     }
 
-    async addSubscriptionForUser(user: UserRecord, countryCode: string, VATNumber: string, existingCustomerId = '', quantity = 1) {
+    async addSubscriptionForUser(user: UserRecord, countryCode: string, region: string, VATNumber: string, existingCustomerId = '', quantity = 1) {
         try {
 
             const planCode = countryCode === 'GB' ? this.plans.business : this.plans.businessUSD;
@@ -237,7 +250,7 @@ class SubscriptionHelper {
 
                 if (!existingCustomerId || existingCustomerId === '') {
                     existingCustomerFlag = false;
-                    const customer = await this.createStripeCustomer(user.email, countryCode, VATNumber);
+                    const customer = await this.createStripeCustomer(user.email, countryCode, region, VATNumber);
                     customerId = customer.id;
 
                     await this.setStripeCustomerData(user, customerId);
@@ -251,7 +264,7 @@ class SubscriptionHelper {
                 console.log('customerData: ', customerData);
                 console.log('customerId: ', customerId);
 
-                const subData = await this.createNewStripeSubscription(customerId, planCode, countryCode, existingCustomerFlag, quantity);
+                const subData = await this.createNewStripeSubscription(customerId, planCode, countryCode, region, existingCustomerFlag, quantity);
                 await this.updateSubscriptionInformationForUser(user, subData);
 
                 return subData;
@@ -263,7 +276,7 @@ class SubscriptionHelper {
         }
     }
 
-    private async createNewStripeSubscription(customerId, planId, countryCode, existingCustomerFlag = false, quantity = 1) {
+    private async createNewStripeSubscription(customerId, planId, countryCode, region, existingCustomerFlag = false, quantity = 1) {
 
         const trial_period_days = existingCustomerFlag ? 0 : 30;
 
@@ -275,10 +288,10 @@ class SubscriptionHelper {
                     plan: planId,
                     quantity,
                     // Add VAT if GB country code.
-                    tax_rates: countryCode === 'GB' ? ['txr_1FxsTKAySKreSZe26HNTl3eH'] : []
+                    tax_rates: region === 'Europe' ? ['txr_1FxsTKAySKreSZe26HNTl3eH'] : []
                 }],
                 trial_period_days,
-                default_tax_rates: countryCode === 'GB' ? ['txr_1FxsTKAySKreSZe26HNTl3eH'] : []
+                default_tax_rates: region === 'Europe' ? ['txr_1FxsTKAySKreSZe26HNTl3eH'] : []
             }
         );
 
@@ -385,6 +398,7 @@ class SubscriptionHelper {
                 subResp = await this.addSubscriptionForUser(
                     user,
                     customerData.metadata.country_code,
+                    customerData.metadata.region,
                     customerData.metadata.vat_number,
                     customerData.id
                 );

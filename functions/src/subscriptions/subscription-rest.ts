@@ -44,8 +44,8 @@ export class SubscriptionRest extends DynRestBase {
     async post(req: Request, res: Response) {
         try {
             const { user } = req.body.dynki;
-            const { countryCode, VATNumber } = req.body;
-            const visibleSubscriptionInfo = await this.helper.addSubscriptionForUser(user, countryCode, VATNumber);
+            const { countryCode, region, VATNumber } = req.body;
+            const visibleSubscriptionInfo = await this.helper.addSubscriptionForUser(user, countryCode, region, VATNumber);
 
             res.json(visibleSubscriptionInfo);
         } catch (error) {
