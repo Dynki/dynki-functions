@@ -223,13 +223,9 @@ export class DomainRest extends DynRestBase {
             .where('owner', '==', user.uid)
             .get();
                         
-            console.log('Domain collection docs length', domainCollection.docs.length);
-
             if (domainCollection && domainCollection.docs.length > 0) {
                 const userDomains = domainCollection.docs[0].data();
                 
-                console.log('UserDomains Data', userDomains);
-
                 if (userDomains.owner === user.uid || this.isAdmin(req, domainId)) {
                     await admin.firestore().collection('user-domains').doc(domainId).update({display_name: name});
                     await admin.firestore().collection('domains').doc(domainId).update({display_name: name});

@@ -101,8 +101,6 @@ export class DomainMembers {
                             res.status(403).send({ error: 'Cannot remove this member from Administrators group' });
                         } else {
 
-                            console.log('Domain data: ', domainData);
-
                             if (domainData.members.find(m => m.uid === user.uid)) {
         
                                 const domainMembers = domainData.members.filter(m => m.uid !== user.uid);

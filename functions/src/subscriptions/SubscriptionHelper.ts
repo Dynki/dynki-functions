@@ -203,7 +203,6 @@ class SubscriptionHelper {
 
     async getStripeCustomerData(user: UserRecord) {
         // Set Stripe customer id from 'stripe_customers' collection.
-        console.log('Getting stripe customer for user:', user.uid);
         const stripeCustomersRef = admin.firestore().collection('stripe_customers').doc(user.uid);
         const customerSnapshot = await stripeCustomersRef.get();
         const customerData = customerSnapshot.data();
@@ -260,10 +259,6 @@ class SubscriptionHelper {
                 }
 
                 const customerData = await this.getStripeCustomerData(user);
-
-                console.log('customerData: ', customerData);
-                console.log('customerId: ', customerId);
-
                 const subData = await this.createNewStripeSubscription(customerId, planCode, countryCode, region, existingCustomerFlag, quantity);
                 await this.updateSubscriptionInformationForUser(user, subData);
 
@@ -388,8 +383,6 @@ class SubscriptionHelper {
         
             const customerData = subResp.customer;
 
-            console.log('A');
-
             if (subResp.status === 'canceled') {
 
                 // Adding another subscription automatically charges the customer 
@@ -412,8 +405,6 @@ class SubscriptionHelper {
                 
             } else {
 
-                console.log('B');
-    
                 let createAnIntent;
                 switch (subResp.status) {
                     case 'active':
@@ -440,8 +431,6 @@ class SubscriptionHelper {
                 }
     
                 if (createAnIntent) {
-                    console.log('C');
-        
                     const setupIntent = await stripe.setupIntents.create(
                         {
                             customer: customerData.id,
@@ -449,13 +438,9 @@ class SubscriptionHelper {
                         }
                     );
     
-                    console.log('D');
-    
                     return { client_secret: setupIntent.client_secret, subscription: subResp };
     
                 } else {
-                    console.log('E');
-    
                     const { customer, latest_invoice } = subResp;
                     const { quantity } = subResp.items.data[0];
                     let { amount, currency } = subResp.items.data[0].plan;
@@ -468,8 +453,6 @@ class SubscriptionHelper {
                         amount = amount * quantity;
                     }
     
-                    console.log('F');
-    
                     const paymentIntent = await stripe.paymentIntents.create(
                         {
                             customer: customer.id,
@@ -481,11 +464,8 @@ class SubscriptionHelper {
                         }
                     );
     
-                    console.log('G');
-    
                     return { client_secret: paymentIntent.client_secret, subscription: subResp };
                 }
-
             }
         } else {
             throw new Error('Unauthorised to perform this operation - not the owner');

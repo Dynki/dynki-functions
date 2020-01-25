@@ -50,8 +50,6 @@ export class PaymentMethodsRest extends DynRestBase {
             if (domainCollection && domainCollection.docs.length > 0) {
                 const userDomains = domainCollection.docs[0].data();
                 
-                console.log('UserDomains Data', userDomains);
-
                 if (userDomains.owner === user.uid) {
                     // Create stripe subscription
 

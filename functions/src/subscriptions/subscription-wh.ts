@@ -24,7 +24,6 @@ const processRequest = async (request, response) => {
         switch (event.type) {
             case 'customer.subscription.updated':
                 const subscription = event.data.object;
-                console.log('Subscription data:', subscription);
 
                 // Get Stripe customer id from 'stripe_customers' collection.
                 const stripeCustomersCollection = await admin.firestore()

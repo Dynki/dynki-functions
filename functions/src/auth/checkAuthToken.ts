@@ -30,8 +30,6 @@ export async function authCheck(req: Request, res: Response, next: any) {
         const user: UserRecord = await admin.auth().getUser(decodedToken.uid);
         
         req.body.dynki = { data: {}, user };
-        console.log('Req user', user);
-
         return next();        
     } catch (error) {
         console.log(error);
