@@ -96,8 +96,10 @@ export class DomainMembers {
                         const containsAdminGroup = memberToDelete.memberOf.indexOf(roles.Administrators) > -1;
                         const user = await admin.auth().getUser(memberToDelete.uid);
         
+                        const isOwner = memberToDelete.uid === domainData.owner;
+
                         // Cannot remove the domain owner from the "ADMINSTRATORS" group.
-                        if (memberToDelete.uid === domainData.owner && req.body.memberOf && !containsAdminGroup) {
+                        if (isOwner) {
                             res.status(403).send({ error: 'Cannot remove this member from Administrators group' });
                         } else {
 

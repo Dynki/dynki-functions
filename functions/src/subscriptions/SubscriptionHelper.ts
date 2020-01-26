@@ -8,8 +8,8 @@ const stripe = require('stripe')(functions.config().stripe.testkey);
 class SubscriptionHelper {
 
     plans = {
-        business: 'plan_Gb1hMAperXfpUE',
-        businessUSD: 'plan_Gb1hGitW9qTiBS'
+        business: 'plan_GcS4hwwlJJaOX1',
+        businessUSD: 'plan_GcS46oKOyT89OF'
     }
 
     private async getUserSubscription(uid): Promise<Subscription> {
@@ -283,10 +283,10 @@ class SubscriptionHelper {
                     plan: planId,
                     quantity,
                     // Add VAT if GB country code.
-                    tax_rates: region === 'Europe' ? ['txr_1FxsTKAySKreSZe26HNTl3eH'] : []
+                    tax_rates: region === 'Europe' ? ['txr_1G5DBPAySKreSZe2oH7uceaS'] : []
                 }],
                 trial_period_days,
-                default_tax_rates: region === 'Europe' ? ['txr_1FxsTKAySKreSZe26HNTl3eH'] : []
+                default_tax_rates: region === 'Europe' ? ['txr_1G5DBPAySKreSZe2oH7uceaS'] : []
             }
         );
 
